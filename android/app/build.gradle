@@ -1,0 +1,57 @@
+plugins {
+    id "com.android.application"
+    id "org.jetbrains.kotlin.android"
+    id "dev.flutter.flutter-gradle-plugin"
+}
+
+def pubspecFile = rootProject.file("../pubspec.yaml")
+def pubspecContent = pubspecFile.getText("UTF-8")
+def versionMatch = pubspecContent =~ /(?m)^version:\s*(\d+\.\d+\.\d+)\+(\d+)/
+def appVersionName = versionMatch ? versionMatch[0][1] : "1.0.0"
+def appVersionCode = versionMatch ? versionMatch[0][2].toInteger() : 1
+
+android {
+    namespace "com.tdg.kaggu_xam_xam"
+    compileSdk 36
+    ndkVersion "28.2.13676358"
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+
+    defaultConfig {
+        applicationId "com.tdg.kaggu_xam_xam"
+        minSdk 24
+        targetSdk 36
+        versionCode appVersionCode
+        versionName appVersionName
+        multiDexEnabled true
+    }
+
+    buildTypes {
+        release {
+            signingConfig signingConfigs.debug
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'),
+                         'proguard-rules.pro'
+        }
+        debug {
+            applicationIdSuffix ".debug"
+            debuggable true
+        }
+    }
+}
+
+flutter {
+    source '../..'
+}
+
+dependencies {
+    implementation 'androidx.multidex:multidex:2.0.1'
+}

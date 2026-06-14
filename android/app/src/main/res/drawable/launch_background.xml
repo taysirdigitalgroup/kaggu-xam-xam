@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@android:color/black" />
+    <!-- Couleur navy de l'app -->
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="#0D2B5E" />
+        </shape>
+    </item>
+</layer-list>

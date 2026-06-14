@@ -1,0 +1,68 @@
+name: kaggu_xam_xam
+description: Application d'enseignements islamiques - Kaggu Xam Xam
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.2.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Audio
+  just_audio: ^0.9.36
+  just_audio_background: ^0.0.1-beta.11
+  audio_session: ^0.1.18
+
+  # State management
+  provider: ^6.1.1
+
+  # Storage & files
+  path_provider: ^2.1.2
+  shared_preferences: ^2.2.2
+  dio: ^5.4.1
+  crypto: ^3.0.3
+
+  # Permissions
+  permission_handler: ^11.3.0
+
+  # UI
+  marquee: ^2.3.0
+  cached_network_image: ^3.3.1
+  flutter_slidable: ^3.0.1
+  lottie: ^3.0.0
+
+  # AdMob
+  google_mobile_ads: ^5.1.0
+
+  # Utils
+  intl: ^0.19.0
+  collection: ^1.18.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+  flutter_launcher_icons: ^0.13.1
+
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: "assets/images/kxx_icon.png"
+  min_sdk_android: 24
+  adaptive_icon_background: "#0D2B5E"
+  adaptive_icon_foreground: "assets/images/kxx_icon.png"
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/
+    - assets/bibliotheque.json
+    # Audios embarqués de base (lus en priorité si l'audio local n'existe pas)
+    # Structure : assets/audios/<prof_key>/<theme_key>/<fichiers>
+    - assets/audios/s_abdou_rahmane/kun_katiman/
+    - assets/audios/s_abdou_rahmane/tazawwudus_sixar/
+    - assets/audios/s_bass_khelcom/histoire_du_prophete_psl/
+    - assets/audios/s_sam_mbaye/ak_talube/
+    - assets/audios/s_sam_mbaye/axiruz_zaman/

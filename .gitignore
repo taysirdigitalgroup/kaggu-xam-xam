@@ -1,0 +1,54 @@
+# -------------------------------------------------------------------------
+# Caches et builds Flutter / Dart
+# -------------------------------------------------------------------------
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.packages
+build/
+
+# Fichiers de configuration générés automatiquement
+node_modules/
+.pubspec.yaml.g.dart
+
+# -------------------------------------------------------------------------
+# Android & NDK (Fichiers lourds générés par Gradle et la compilation C/C++)
+# -------------------------------------------------------------------------
+android/.gradle/
+android/local.properties
+android/captures/
+android/.cxx/
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# Binaires temporaires compilés par le NDK 
+# (Vos scripts de build les recréeront, inutile de les versionner)
+android/app/src/main/jniLibs/
+android/app/build/
+
+# -------------------------------------------------------------------------
+# Fichiers système et Éditeurs (Linux, Windows, macOS)
+# -------------------------------------------------------------------------
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+*~
+
+# Si vous utilisez VS Code ou Android Studio pour éditer le code
+.vscode/
+.KEYS_IDS.txt
+.CMD_NOTES.txt
+
+# Les clés
+android/key.properties
+android/app/*.jks
+
+# APK Releases
+releases/
+
+converter/
+
