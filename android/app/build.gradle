@@ -1,6 +1,6 @@
 plugins {
     id "com.android.application"
-    id "org.jetbrains.kotlin.android"
+    id "kotlin-android"
     id "dev.flutter.flutter-gradle-plugin"
 }
 
@@ -12,8 +12,13 @@ def appVersionCode = versionMatch ? versionMatch[0][2].toInteger() : 1
 
 android {
     namespace "com.tdg.kaggu_xam_xam"
-    compileSdk 36
-    ndkVersion "28.2.13676358"
+
+    // Les plugins (audio_service, shared_preferences, etc.) exigent SDK 36
+    compileSdk = 36
+
+    // NDK le plus élevé requis par les plugins (jni exige 28.2.13676358)
+    // Rétrocompatible avec r26d — pas besoin de réinstaller r26d séparément
+    ndkVersion = "28.2.13676358"
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
@@ -26,7 +31,7 @@ android {
 
     defaultConfig {
         applicationId "com.tdg.kaggu_xam_xam"
-        minSdk 24
+        minSdk 24          // Android 7.0+ comme demandé
         targetSdk 36
         versionCode appVersionCode
         versionName appVersionName
@@ -42,7 +47,6 @@ android {
                          'proguard-rules.pro'
         }
         debug {
-            applicationIdSuffix ".debug"
             debuggable true
         }
     }

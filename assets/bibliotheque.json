@@ -1,10 +1,10 @@
 {
     "S Abdou Rahmane": {
-        "Kun Katiman": [
+        "01 Kun_Katiman": [
             "kun_katiman_001.ogg",
             "kun_katiman_002.ogg"
         ],
-        "Tazawwudus Sixar": [
+        "02 Tazawwudus_Sixar": [
             "tazawudus_sixar_001.ogg",
             "tazawudus_sixar_002.ogg",
             "tazawudus_sixar_003.ogg",
@@ -46,10 +46,38 @@
             "tazawudus_sixar_039.ogg",
             "tazawudus_sixar_040.ogg",
             "tazawudus_sixar_041.ogg"
-        ]
+        ],
+        "03 Jawharun Nafìs": [],
+        "04 Tazawwudus Shubbàn": [],
+        "05 Nahju Xadà-Il Hàj": [],
+        "06 Huqal Bukà-U": [],
+        "07 Maghàlikhun Niràn": [],
+        "08 Masàlikul Jinàn": [],
+        "09 Mawàhibul Xuddùs": [],
+        "10 Ilhamul Wadùd": [],
+        "11 Ilhàmus Salàm": [],
+        "12 Jàlibatul Burùr": [],
+        "13 Mulayyinus Sudùr": [],
+        "14 Munawwirus Sudùr": [],
+        "15 Jazbatus Sighàr": [],
+        "16 Zàdu Zawit Tahallumi": [],
+        "17 Faydul Ghaniyyil Mughnì": [],
+        "18 Hàma Shahidnà Bikaramin": [],
+        "19 Jawàbu Sokhna Penda Diop": [],
+        "20 Jawàbu Serign Pakala": [],
+        "21 Silkul Jawàhir": [],
+        "22 Fathul Mannàn": [],
+        "23 Majmahun Nùrayni": [],
+        "24 Majmùhatun": [],
+        "25 Nafà-Isud Durari": [],
+        "26 Jazbul Xulùb": [],
+        "27 Mawàhibun Nàfih": [],
+        "28 Muxaddamàtul Amdàh": [],
+        "29 Rà-Iya": []
     },
     "S Bass Khelcom": {
-        "Histoire Du Prophete Psl": [
+        "01 Histoire Des Prophètes": [],
+        "02 Histoire Du Prophete (PSL)": [
             "01_le_debut_de_l_islam.ogg",
             "02_persecutions_exils_en_ethiopie_conversions_de_seydina_de_hamza_et_de_s_omar.ogg",
             "03_le_boycotte_l_annee_du_chagrin_et_la_deception_taif.ogg",
@@ -70,18 +98,40 @@
             "18_xareb_hounayn_ak_taif_ak_tabouk.ogg",
             "19_melokanu_yonentabi_saw_ak_ay_djikkoom.ogg",
             "20_guinaw_bi_yonentebi_saw_lakho_xewxew_ya_thia_am_ay_soxnam.ogg"
-        ]
+        ],
+        "03 Histoire Des 4 Kalifas": [],
+        "04 Histoire De Cheikhoul Khadim": [],
+        "05 Minanoul Baaxil Xadiim": []
     },
     "S Sam Mbaye": {
-        "Ak Talube": [
+        "01 Éducation": [
             "ak_talube_1.ogg",
             "ak_talube_2.ogg",
             "ak_talube_3.ogg"
         ],
-        "Axiruz Zaman": [
+        "02 Fin Des Temps": [
             "axiruz_zaman_1.ogg",
             "axiruz_zaman_2.ogg",
             "axiruz_zaman_3.ogg"
-        ]
+        ],
+        "03 Coeur Du Musulman": [],
+        "04 Connaître Islam": [],
+        "05 Coran Et Son Message": [],
+        "06 Dieu Et Ses Créatures": [],
+        "07 Islam Et Foi  An-84": [],
+        "08 Islam Et Jeunesse": [],
+        "09 Islam Et Parenté": [],
+        "10 Khadimou Rassoul": [],
+        "11 Khassida": [],
+        "12 La Foi": [],
+        "13 Àme Éternelle": [],
+        "14 Le Monde Contemporain": [],
+        "15 Le Musulman": [],
+        "16 Le Plaisir": [],
+        "17 Le Soufisme": [],
+        "18 Le Temps": [],
+        "19 Serigne Touba Et La Jeunesse": [],
+        "20 Unicité Des Musulmans": [],
+        "21 Prêche Eid Al Fitr": []
     }
 }

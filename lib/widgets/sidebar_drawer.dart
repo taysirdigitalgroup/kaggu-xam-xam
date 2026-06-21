@@ -114,11 +114,32 @@ class _ProfessorTile extends StatelessWidget {
                           fontWeight: FontWeight.w600,
                         ),
                       ),
-                      Text(
-                        '${prof.themes.length} thème${prof.themes.length > 1 ? 's' : ''}',
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.45),
-                          fontSize: 10,
+                      RichText(
+                        text: TextSpan(
+                          children: [
+                            TextSpan(
+                              text: prof.role,
+                              style: TextStyle(
+                                color: kGoldLight.withOpacity(0.85),
+                                fontSize: 10,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            TextSpan(
+                              text: '  —  ',
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.25),
+                                fontSize: 10,
+                              ),
+                            ),
+                            TextSpan(
+                              text: '${prof.themes.length} thème${prof.themes.length > 1 ? 's' : ''}',
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.45),
+                                fontSize: 10,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
@@ -174,9 +195,16 @@ class _ThemesList extends StatelessWidget {
           final isRefreshing = provider.isThemeRefreshing(theme);
 
           return InkWell(
-            onTap: () async {
+            onTap: () {
+              // IMPORTANT : sélectionner le thème AVANT de fermer le drawer.
+              // selectTheme() notifie immédiatement (affichage liste/lecteur)
+              // puis charge l'audio en tâche de fond. Fermer le drawer
+              // d'abord (comme avant) pouvait avaler ce premier
+              // notifyListeners() pendant la transition de fermeture,
+              // obligeant l'utilisateur à taper une 2ème fois pour voir
+              // la page liste/lecteur apparaître.
+              provider.selectTheme(prof, theme);
               Navigator.pop(context);
-              await provider.selectTheme(prof, theme);
             },
             borderRadius: BorderRadius.circular(6),
             child: Container(
@@ -247,6 +275,12 @@ class _ThemeActionButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final provider = context.read<AppProvider>();
+
+    // Thème sans aucun audio (liste vide dans le JSON) → pas de bouton
+    // télécharger/rafraîchir, rien à gérer pour ce thème.
+    if (theme.tracks.isEmpty) {
+      return const SizedBox.shrink();
+    }
 
     // En cours de traitement → spinner
     if (isDownloading || isRefreshing) {

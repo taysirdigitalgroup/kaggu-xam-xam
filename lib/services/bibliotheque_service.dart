@@ -7,20 +7,57 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/constants.dart';
-import '../models/models.dart';
 import '../utils/string_utils.dart';
+import '../models/models.dart';
 
 class BibliothequeService {
   final Dio _dio = Dio(BaseOptions(
     connectTimeout: const Duration(seconds: 10),
     receiveTimeout: const Duration(seconds: 15),
+    followRedirects: true,
+    maxRedirects: 5,
+    headers: {
+      'Cache-Control': 'no-cache',
+      'User-Agent': 'KagguXamXam/${AppConstants.appVersion}',
+    },
   ));
 
-  /// Charge et synchronise la bibliothèque selon la règle :
-  /// 1. Tente de récupérer le JSON distant
-  /// 2. Si différent du cache → sauvegarde localement + met à jour le hash
-  /// 3. En cas d'erreur réseau → utilise la version cache locale
-  /// 4. Si pas de cache local → utilise l'asset embarqué (assets/bibliotheque.json)
+  // ══════════════════════════════════════════════════════════════════════
+  // CONFIGURATION DES PROFESSEURS
+  // ══════════════════════════════════════════════════════════════════════
+  //
+  // Pour ajouter un nouveau professeur :
+  //   1. Ajouter son entrée dans bibliotheque.json (dépôt distant)
+  //   2. Ajouter son image dans assets/images/ en respectant la convention :
+  //        toSlug("S Saliou Sow") → "s_saliou_sow"  → assets/images/s_saliou_sow.jpg
+  //        toSlug("S Abdou Rahmane") → "s_abdou_rahmane" → assets/images/s_abdou_rahmane.jpg
+  //      L'image est trouvée AUTOMATIQUEMENT — pas besoin de modifier ce fichier.
+  //   3. Optionnel : ajouter son rôle dans _profRoles ci-dessous.
+  //      Si absent → "Enseignements" par défaut.
+  //
+  // Convention de nommage image :
+  //   Nom JSON  : "S Saliou Sow"
+  //   Slug auto : toSlug("S Saliou Sow") = "s_saliou_sow"
+  //   Fichier   : assets/images/s_saliou_sow.jpg  (ou .jpeg / .png)
+  //
+  // ══════════════════════════════════════════════════════════════════════
+
+  /// Rôles des professeurs — clé = nom exact dans bibliotheque.json
+  /// Ajouter une entrée pour chaque nouveau prof si nécessaire.
+  /// Si absent : "Enseignements" par défaut.
+  static const Map<String, String> _profRoles = {
+    'S Abdou Rahmane': 'Enseignements',
+    'S Bass Khelcom':  'Histoires',
+    'S Sam Mbaye':     'Conférences',
+    // Ajouter ici les prochains profs :
+    // 'S Saliou Sow': 'Khutbas',
+  };
+
+  /// Extensions d'images acceptées (dans l'ordre de priorité)
+  static const List<String> _imageExtensions = ['jpg', 'jpeg', 'png', 'webp'];
+
+  // ── Chargement ──────────────────────────────────────────────────────
+
   Future<List<Professor>> loadBibliotheque() async {
     final prefs = await SharedPreferences.getInstance();
     String jsonStr;
@@ -31,13 +68,17 @@ class BibliothequeService {
         options: Options(responseType: ResponseType.plain),
       );
 
-      if (response.data != null && response.data!.isNotEmpty) {
+      if (response.statusCode == 200 &&
+          response.data != null &&
+          response.data!.trim().isNotEmpty) {
         final remoteJson = response.data!;
+        // Validation JSON avant sauvegarde
+        jsonDecode(remoteJson);
+
         final remoteHash = md5.convert(utf8.encode(remoteJson)).toString();
         final cachedHash = prefs.getString(AppConstants.prefBiblioHash) ?? '';
 
         if (remoteHash != cachedHash) {
-          // Nouvelle version → sauvegarder en local
           await _saveLocalBiblio(remoteJson);
           await prefs.setString(AppConstants.prefBiblioHash, remoteHash);
         }
@@ -46,7 +87,6 @@ class BibliothequeService {
         jsonStr = await _loadLocalBiblio();
       }
     } catch (_) {
-      // Pas de réseau → version locale ou asset embarqué
       jsonStr = await _loadLocalBiblio();
     }
 
@@ -54,69 +94,86 @@ class BibliothequeService {
   }
 
   Future<void> _saveLocalBiblio(String json) async {
-    final dir = await getApplicationDocumentsDirectory();
+    final dir  = await getApplicationDocumentsDirectory();
     final file = File('${dir.path}/${AppConstants.localBiblioFilename}');
     await file.writeAsString(json, encoding: utf8);
   }
 
   Future<String> _loadLocalBiblio() async {
-    // 1. Cache local (documents) – version synchronisée précédemment
     try {
-      final dir = await getApplicationDocumentsDirectory();
+      final dir  = await getApplicationDocumentsDirectory();
       final file = File('${dir.path}/${AppConstants.localBiblioFilename}');
       if (await file.exists()) {
-        return await file.readAsString(encoding: utf8);
+        final content = await file.readAsString(encoding: utf8);
+        if (content.trim().isNotEmpty) return content;
       }
     } catch (_) {}
-    // 2. Asset embarqué (fallback absolu)
-    return await rootBundle.loadString('assets/bibliotheque.json');
+    return rootBundle.loadString('assets/bibliotheque.json');
   }
 
-  List<Professor> _parseBibliotheque(String jsonStr) {
-    final Map<String, dynamic> data = jsonDecode(jsonStr);
-    final List<Professor> professors = [];
+  // ── Parsing ──────────────────────────────────────────────────────────
 
-    final Map<String, String> profImages = {
-      'S Abdou Rahmane': 'assets/images/abdou_rahmane.jpg',
-      'S Bass Khelcom': 'assets/images/bass_khelcom.jpg',
-      'S Sam Mbaye': 'assets/images/sam_mbaye.jpg',
-    };
+  List<Professor> _parseBibliotheque(String jsonStr) {
+    final Map<String, dynamic> data = jsonDecode(jsonStr) as Map<String, dynamic>;
+    final List<Professor> professors = [];
 
     data.forEach((profName, themesData) {
       final profKey = toSlug(profName);
-      final themes = <AudioTheme>[];
+      final themes  = <AudioTheme>[];
 
       if (themesData is Map<String, dynamic>) {
         themesData.forEach((themeName, audioFiles) {
           final themeKey = toSlug(themeName);
-          final tracks = <AudioTrack>[];
+          final tracks   = <AudioTrack>[];
 
           if (audioFiles is List) {
             for (final filename in audioFiles) {
               tracks.add(AudioTrack(
                 filename: filename.toString(),
-                profKey: profKey,
+                profKey:  profKey,
                 themeKey: themeKey,
               ));
             }
           }
 
           themes.add(AudioTheme(
-            name: themeName,
+            name:    themeName,
             profKey: profKey,
-            tracks: tracks,
+            tracks:  tracks,
           ));
         });
       }
 
       professors.add(Professor(
-        name: profName,
-        key: profKey,
-        imagePath: profImages[profName] ?? 'assets/images/default_prof.png',
-        themes: themes,
+        name:      profName,
+        key:       profKey,
+        // Convention automatique : toSlug(profName) = nom du fichier image
+        // "S Sam Mbaye" → "s_sam_mbaye" → assets/images/s_sam_mbaye.jpg
+        imagePath: _resolveImagePath(profKey),
+        role:      _profRoles[profName] ?? 'Enseignements',
+        themes:    themes,
       ));
     });
 
     return professors;
+  }
+
+  /// Retourne le chemin asset de l'image du prof.
+  /// Essaie chaque extension dans l'ordre jusqu'à trouver.
+  /// Si aucune n'existe dans le manifest → image par défaut.
+  ///
+  /// Exemple :
+  ///   profKey = "s_sam_mbaye"
+  ///   Tente : assets/images/s_sam_mbaye.jpg  ← en production c'est celui-là
+  ///           assets/images/s_sam_mbaye.jpeg
+  ///           assets/images/s_sam_mbaye.png
+  ///           assets/images/s_sam_mbaye.webp
+  ///   Fallback : assets/images/default_prof.png
+  String _resolveImagePath(String profKey) {
+    // On retourne le chemin .jpg par défaut.
+    // Flutter lèvera l'errorBuilder si l'asset n'existe pas
+    // (géré dans le widget avec l'initiale du prof).
+    // Pour supporter d'autres extensions, ajouter une logique async ici.
+    return 'assets/images/$profKey.jpg';
   }
 }

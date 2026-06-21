@@ -19,7 +19,7 @@ Future<void> main() async {
 
   // Initialiser just_audio_background (notification de lecture)
   await JustAudioBackground.init(
-    androidNotificationChannelId: 'com.tdg.kaggu_xam_xam.audio',
+    androidNotificationChannelId: 'com.ryanheise.bg_demo.channel.audio',
     androidNotificationChannelName: 'Kaggu Xam Xam',
     androidNotificationOngoing: true,
     androidStopForegroundOnPause: true,

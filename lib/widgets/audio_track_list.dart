@@ -56,8 +56,10 @@ class AudioTrackList extends StatelessWidget {
                 ),
               ),
 
-              // Bouton téléchargement
-              if (isDownloading && dlState != null) ...[
+              // Bouton téléchargement (masqué si le thème n'a aucun audio)
+              if (theme.tracks.isEmpty)
+                const SizedBox.shrink()
+              else if (isDownloading && dlState != null) ...[
                 // Progression compacte
                 Column(
                   children: [
@@ -106,28 +108,67 @@ class AudioTrackList extends StatelessWidget {
 
         const Divider(height: 1),
 
-        // Liste des pistes
+        // Liste des pistes (ou message si le thème n'a pas encore d'audio)
         Expanded(
-          child: ListView.separated(
-            padding: const EdgeInsets.only(bottom: 8),
-            itemCount: theme.tracks.length,
-            separatorBuilder: (_, __) =>
-                const Divider(height: 1, indent: 64),
-            itemBuilder: (ctx, index) {
-              final track = theme.tracks[index];
-              final isCurrent = provider.currentTrackIndex == index &&
-                  provider.selectedTheme?.name == theme.name;
+          child: theme.tracks.isEmpty
+              ? _EmptyThemeMessage(themeName: theme.name)
+              : ListView.separated(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  itemCount: theme.tracks.length,
+                  separatorBuilder: (_, __) =>
+                      const Divider(height: 1, indent: 64),
+                  itemBuilder: (ctx, index) {
+                    final track = theme.tracks[index];
+                    final isCurrent = provider.currentTrackIndex == index &&
+                        provider.selectedTheme?.name == theme.name;
 
-              return _TrackTile(
-                track: track,
-                index: index,
-                isCurrent: isCurrent,
-                onTap: () => provider.selectTrack(index),
-              );
-            },
-          ),
+                    return _TrackTile(
+                      track: track,
+                      index: index,
+                      isCurrent: isCurrent,
+                      // Le tap sur la ligne sélectionne la piste, sauf si
+                      // c'est déjà la piste en cours : dans ce cas
+                      // selectTrack() ne fait rien (cf. AppProvider), et le
+                      // toggle play/pause se fait uniquement via le bouton
+                      // rond dédié (voir _TrackTile ci-dessous).
+                      onTap: () async {
+                        final error = await provider.selectTrack(index);
+                        if (error != null && ctx.mounted) {
+                          _showOfflineDialog(ctx, error);
+                        }
+                      },
+                    );
+                  },
+                ),
         ),
       ],
+    );
+  }
+}
+
+class _EmptyThemeMessage extends StatelessWidget {
+  final String themeName;
+  const _EmptyThemeMessage({required this.themeName});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.hourglass_empty_rounded,
+                size: 40, color: Colors.grey.shade400),
+            const SizedBox(height: 12),
+            Text(
+              'Aucun audio disponible pour\n« $themeName » pour le moment.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -156,7 +197,7 @@ class _TrackTile extends StatelessWidget {
         color: isCurrent ? kGold.withOpacity(0.06) : Colors.transparent,
         child: Row(
           children: [
-            // Numéro / icône lecture
+            // Numéro / icône lecture (bouton toggle play/pause si en cours)
             SizedBox(
               width: 36,
               height: 36,
@@ -164,19 +205,30 @@ class _TrackTile extends StatelessWidget {
                   ? StreamBuilder<PlayerState>(
                       stream: provider.audioService.playerStateStream,
                       builder: (_, snap) {
-                        final playing =
-                            snap.data?.playing == true;
-                        return Container(
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: kNavy,
-                          ),
-                          child: Icon(
-                            playing
-                                ? Icons.pause
-                                : Icons.play_arrow,
-                            color: Colors.white,
-                            size: 18,
+                        final playing = snap.data?.playing == true;
+                        // InkWell imbriqué : intercepte le tap avant qu'il
+                        // ne remonte au InkWell parent de la ligne, donc
+                        // taper ce cercle fait UNIQUEMENT un toggle
+                        // play/pause et ne déclenche pas onTap() (qui
+                        // appellerait selectTrack et pourrait sembler
+                        // "réinitialiser" la lecture).
+                        return Material(
+                          color: Colors.transparent,
+                          shape: const CircleBorder(),
+                          child: InkWell(
+                            onTap: () => provider.togglePlayPause(),
+                            customBorder: const CircleBorder(),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: kNavy,
+                              ),
+                              child: Icon(
+                                playing ? Icons.pause : Icons.play_arrow,
+                                color: Colors.white,
+                                size: 18,
+                              ),
+                            ),
                           ),
                         );
                       },
@@ -241,4 +293,56 @@ class _TrackTile extends StatelessWidget {
       ),
     );
   }
+}
+
+// ── Dialog hors-ligne ────────────────────────────────────────────────────
+
+void _showOfflineDialog(BuildContext context, String message) {
+  showDialog(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      icon: Icon(Icons.wifi_off_rounded, color: kNavy, size: 40),
+      title: const Text(
+        'Hors-ligne',
+        textAlign: TextAlign.center,
+        style: TextStyle(fontWeight: FontWeight.w700),
+      ),
+      content: Text(
+        message,
+        textAlign: TextAlign.center,
+        style: const TextStyle(fontSize: 13, height: 1.5),
+      ),
+      actionsAlignment: MainAxisAlignment.center,
+      actions: [
+        // Bouton fermer
+        TextButton(
+          onPressed: () => Navigator.pop(ctx),
+          child: Text('Fermer', style: TextStyle(color: Colors.grey.shade600)),
+        ),
+        // Bouton télécharger → ouvre le bottom sheet de téléchargement
+        ElevatedButton.icon(
+          onPressed: () {
+            Navigator.pop(ctx);
+            // Récupérer le provider et ouvrir le sheet de download
+            final provider = ctx.read<AppProvider>();
+            final theme    = provider.selectedTheme;
+            final prof     = provider.selectedProfessor;
+            if (theme != null && prof != null) {
+              showDownloadSheet(ctx, theme, prof);
+            }
+          },
+          icon: const Icon(Icons.download_rounded, size: 16),
+          label: const Text('Télécharger'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: kNavy,
+            foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
 }

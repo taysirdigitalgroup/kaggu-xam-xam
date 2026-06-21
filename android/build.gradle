@@ -20,8 +20,8 @@ tasks.register("clean", Delete) {
 subprojects {
     configurations.all {
         resolutionStrategy {
-            force "org.jetbrains.kotlin:kotlin-stdlib:2.2.20"
-            force "org.jetbrains.kotlin:kotlin-gradle-plugin:2.2.20"
+            force "org.jetbrains.kotlin:kotlin-stdlib:2.1.0"
+            force "org.jetbrains.kotlin:kotlin-gradle-plugin:2.1.0"
         }
     }
 }

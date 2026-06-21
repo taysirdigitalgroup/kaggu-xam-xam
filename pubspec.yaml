@@ -36,6 +36,9 @@ dependencies:
   # AdMob
   google_mobile_ads: ^5.1.0
 
+  # Connectivité réseau (détection hors-ligne)
+  connectivity_plus: ^6.0.3
+
   # Utils
   intl: ^0.19.0
   collection: ^1.18.0
@@ -61,8 +64,4 @@ flutter:
     - assets/bibliotheque.json
     # Audios embarqués de base (lus en priorité si l'audio local n'existe pas)
     # Structure : assets/audios/<prof_key>/<theme_key>/<fichiers>
-    - assets/audios/s_abdou_rahmane/kun_katiman/
-    - assets/audios/s_abdou_rahmane/tazawwudus_sixar/
-    - assets/audios/s_bass_khelcom/histoire_du_prophete_psl/
-    - assets/audios/s_sam_mbaye/ak_talube/
-    - assets/audios/s_sam_mbaye/axiruz_zaman/
+    - assets/audios/

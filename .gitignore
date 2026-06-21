@@ -51,4 +51,6 @@ android/app/*.jks
 releases/
 
 converter/
-
+# Ne pas mettre les audios dans le
+assets/audios/
+assets/.git
