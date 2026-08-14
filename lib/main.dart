@@ -21,8 +21,15 @@ Future<void> main() async {
   await JustAudioBackground.init(
     androidNotificationChannelId: 'com.ryanheise.bg_demo.channel.audio',
     androidNotificationChannelName: 'Kaggu Xam Xam',
-    androidNotificationOngoing: true,
-    androidStopForegroundOnPause: true,
+    // false : la notification/session média reste active pendant une pause
+    // (y compris une pause déclenchée par la perte du focus audio quand une
+    // autre app se met à jouer). C'est ce qui permet au lecteur de rester
+    // affiché et aux boutons suivant/précédent de continuer à fonctionner
+    // depuis la notification, comme les vraies apps de lecture audio.
+    // Ne PAS combiner avec androidNotificationOngoing: true — cette
+    // combinaison est rejetée par le plugin (com.ryanheise.audioservice).
+    androidNotificationOngoing: false,
+    androidStopForegroundOnPause: false,
   );
 
   runApp(
@@ -78,11 +85,11 @@ class _SplashScreen extends StatelessWidget {
           children: [
             Image.asset(
               'assets/images/kxx_icon.png',
-              width: 110,
-              height: 110,
+              width: 84,
+              height: 84,
               errorBuilder: (_, __, ___) => Container(
-                width: 110,
-                height: 110,
+                width: 84,
+                height: 84,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   border: Border.all(color: kGold, width: 3),

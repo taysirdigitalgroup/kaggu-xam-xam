@@ -199,7 +199,7 @@ class AudioPlayerWidget extends StatelessWidget {
                   return GestureDetector(
                     onTap: playing
                         ? audioSvc.pause
-                        : audioSvc.play,
+                        : context.read<AppProvider>().togglePlayPause,
                     child: Container(
                       width: 52,
                       height: 52,

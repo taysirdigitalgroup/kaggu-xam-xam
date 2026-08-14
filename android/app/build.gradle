@@ -38,9 +38,19 @@ android {
         multiDexEnabled true
     }
 
+    signingConfigs {
+        release {
+            def props = new Properties()
+            file("../../android/key.properties").withInputStream { props.load(it) }
+            keyAlias        props['keyAlias']
+            keyPassword     props['keyPassword']
+            storeFile       file(props['storeFile'])
+            storePassword   props['storePassword']
+        }
+    }
     buildTypes {
         release {
-            signingConfig signingConfigs.debug
+            signingConfig signingConfigs.release
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'),

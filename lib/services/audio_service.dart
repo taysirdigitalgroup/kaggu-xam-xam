@@ -1,5 +1,6 @@
 // lib/services/audio_service.dart
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:audio_session/audio_session.dart';
 import 'package:flutter/services.dart';
 import 'package:just_audio/just_audio.dart';
@@ -12,10 +13,10 @@ import 'download_service.dart';
 class AudioPlayerService {
   final AudioPlayer     _player          = AudioPlayer();
   final DownloadService _downloadService = DownloadService();
-
-  // Cache des URI d'artwork déjà copiés en fichier temporaire
-  // clé = assetPath, valeur = chemin fichier local
   final Map<String, String> _artworkCache = {};
+
+  // Callback appelé par AppProvider pour re-play après interruption
+  VoidCallback? onResumeRequested;
 
   AudioPlayer get player => _player;
 
@@ -35,27 +36,55 @@ class AudioPlayerService {
     final session = await AudioSession.instance;
     await session.configure(const AudioSessionConfiguration.music());
 
+    // Gestion des interruptions audio (appel entrant, autre app, etc.)
     session.interruptionEventStream.listen((event) {
       if (event.begin) {
-        _player.pause();
+        // Interruption commencée → toujours pause
+        switch (event.type) {
+          case AudioInterruptionType.duck:
+            // Baisser le volume temporairement si duck, pas pause
+            _player.setVolume(0.3);
+            break;
+          case AudioInterruptionType.pause:
+          case AudioInterruptionType.unknown:
+            _player.pause();
+            break;
+        }
       } else {
-        if (event.type == AudioInterruptionType.pause ||
-            event.type == AudioInterruptionType.duck) {
-          _player.play();
+        // Interruption terminée → reprendre
+        switch (event.type) {
+          case AudioInterruptionType.duck:
+            _player.setVolume(1.0);
+            break;
+          case AudioInterruptionType.pause:
+          case AudioInterruptionType.unknown:
+            // Reprendre seulement si le player était en train de jouer
+            // avant l'interruption (processingState indique s'il y a
+            // une source chargée)
+            if (_player.processingState == ProcessingState.ready) {
+              _player.play();
+            }
+            break;
         }
       }
     });
+
+    // Gestion des événements de transport Android (boutons notification,
+    // écouteurs, Bluetooth) — just_audio_background gère déjà la plupart
+    // mais on s'assure que le bouton Play sur notification fonctionne
+    // même après une interruption.
+    session.becomingNoisyEventStream.listen((_) {
+      // Câble débranché / Bluetooth déconnecté → pause obligatoire
+      _player.pause();
+    });
   }
 
-  /// Charge le thème complet et démarre à [startIndex].
-  /// [professor] est utilisé pour l'artwork de la notification.
+  /// Charge le thème et démarre à [startIndex].
   Future<void> loadTheme(
     AudioTheme theme, {
     int startIndex = 0,
     Professor? professor,
   }) async {
-    // Préparer l'artwork AVANT de charger la playlist
-    // (copier l'asset en fichier tmp si pas encore fait)
     Uri? artworkUri;
     if (professor != null && professor.imagePath.isNotEmpty) {
       artworkUri = await _resolveArtworkUri(professor.imagePath);
@@ -95,54 +124,44 @@ class AudioPlayerService {
     return AudioSource.uri(Uri.parse(uri), tag: tag);
   }
 
-  /// Convertit un chemin asset en URI file:// utilisable par Android
-  /// pour afficher l'image dans la notification du lecteur.
-  ///
-  /// Android ne peut pas lire les assets Flutter directement depuis
-  /// la notification système. On copie l'image une seule fois dans
-  /// le répertoire de cache de l'app, puis on passe son chemin file://.
+  /// Copie l'asset image dans un fichier cache pour la notification Android.
   Future<Uri?> _resolveArtworkUri(String assetPath) async {
-    // Cache hit → retourner directement
     if (_artworkCache.containsKey(assetPath)) {
-      final cachedPath = _artworkCache[assetPath]!;
-      if (File(cachedPath).existsSync()) {
-        return Uri.file(cachedPath);
-      }
+      final p = _artworkCache[assetPath]!;
+      if (File(p).existsSync()) return Uri.file(p);
     }
-
     try {
-      // Lire l'image depuis le bundle Flutter
-      final byteData = await rootBundle.load(assetPath);
-      final bytes = byteData.buffer.asUint8List(
-        byteData.offsetInBytes,
-        byteData.lengthInBytes,
-      );
-
-      // Déterminer l'extension
-      final ext = assetPath.split('.').last.toLowerCase();
-
-      // Copier dans le répertoire de cache de l'app
+      final data     = await rootBundle.load(assetPath);
+      final bytes    = data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
       final cacheDir = await getTemporaryDirectory();
-      // Nom de fichier stable basé sur l'asset (pas de timestamp)
       final filename = assetPath.replaceAll('/', '_').replaceAll(' ', '_');
-      final file = File('${cacheDir.path}/artwork_$filename');
+      final file     = File('${cacheDir.path}/artwork_$filename');
       await file.writeAsBytes(bytes, flush: true);
-
       _artworkCache[assetPath] = file.path;
       return Uri.file(file.path);
     } catch (e) {
-      // Asset absent ou erreur lecture → pas d'artwork (pas grave)
-      print('[AudioService] Artwork non résolu pour $assetPath : $e');
+      debugPrint('[AudioService] Artwork non résolu: $e');
       return null;
     }
   }
 
-  Future<void> play()  => _player.play();
+  // ── Contrôles ────────────────────────────────────────────────────────
+
+  /// Play robuste : si le player est en idle/completed mais a une source,
+  /// tente de seek à la position courante d'abord pour le "réveiller".
+  Future<void> play() async {
+    if (_player.processingState == ProcessingState.completed) {
+      // Fin de playlist → retour au début
+      await _player.seek(Duration.zero, index: 0);
+    }
+    await _player.play();
+  }
+
   Future<void> pause() => _player.pause();
   Future<void> stop()  => _player.stop();
 
-  Future<void> seekTo(Duration position)  => _player.seek(position);
-  Future<void> seekToIndex(int index)     => _player.seek(Duration.zero, index: index);
+  Future<void> seekTo(Duration position) => _player.seek(position);
+  Future<void> seekToIndex(int index)    => _player.seek(Duration.zero, index: index);
 
   Future<void> skipForward() async {
     final newPos = _player.position + const Duration(seconds: 10);

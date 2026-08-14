@@ -234,7 +234,7 @@ class InfoScreen extends StatelessWidget {
                       Icon(Icons.copyright, size: 18, color: Colors.grey.shade400),
                       const SizedBox(height: 6),
                       Text(
-                        '© 2025 Taysir Digital Group (TDG)',
+                        '© 2026 Taysir Digital Group (TDG)',
                         style: TextStyle(
                           fontSize: 12,
                           color: Colors.grey.shade500,

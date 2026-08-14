@@ -50,7 +50,10 @@ android/app/*.jks
 # APK Releases
 releases/
 
+# Archives
+*.zip
+*.zip
+*.tar.gz
+
+# Dossier de convesion
 converter/
-# Ne pas mettre les audios dans le
-assets/audios/
-assets/.git

@@ -5,6 +5,7 @@ import '../models/models.dart';
 import '../providers/app_provider.dart';
 import '../screens/info_screen.dart';
 import '../utils/app_theme.dart';
+import '../utils/string_utils.dart';
 import 'download_sheet.dart';
 
 class SidebarDrawer extends StatelessWidget {
@@ -36,9 +37,7 @@ class SidebarDrawer extends StatelessWidget {
                       ),
                     ),
                   ),
-                  ...provider.professors.map(
-                    (prof) => _ProfessorTile(prof: prof),
-                  ),
+                  ...provider.professors.map((prof) => _ProfessorTile(prof: prof)),
                 ],
               ),
             ),
@@ -57,7 +56,7 @@ class _ProfessorTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final provider = context.watch<AppProvider>();
+    final provider   = context.watch<AppProvider>();
     final isExpanded = provider.expandedProfs.contains(prof.key);
     final isSelected = provider.selectedProfessor?.key == prof.key;
 
@@ -67,13 +66,10 @@ class _ProfessorTile extends StatelessWidget {
           onTap: () => provider.toggleProfExpand(prof.key),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: BoxDecoration(
-              color: isSelected
-                  ? kGold.withOpacity(0.15)
-                  : Colors.transparent,
-            ),
+            color: isSelected ? kGold.withOpacity(0.15) : Colors.transparent,
             child: Row(
               children: [
+                // Avatar
                 Container(
                   width: 48,
                   height: 48,
@@ -89,7 +85,9 @@ class _ProfessorTile extends StatelessWidget {
                         color: kNavy,
                         child: Center(
                           child: Text(
-                            prof.name.substring(0, 2).toUpperCase(),
+                            prof.name.length >= 2
+                                ? prof.name.substring(0, 2).toUpperCase()
+                                : prof.name.toUpperCase(),
                             style: TextStyle(
                               color: kGold,
                               fontWeight: FontWeight.bold,
@@ -102,6 +100,7 @@ class _ProfessorTile extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 12),
+                // Nom + Rôle — N thèmes
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -148,20 +147,16 @@ class _ProfessorTile extends StatelessWidget {
                 AnimatedRotation(
                   turns: isExpanded ? 0.5 : 0,
                   duration: const Duration(milliseconds: 200),
-                  child: Icon(
-                    Icons.keyboard_arrow_down,
-                    color: kGoldLight,
-                    size: 20,
-                  ),
+                  child: Icon(Icons.keyboard_arrow_down, color: kGoldLight, size: 20),
                 ),
               ],
             ),
           ),
         ),
         AnimatedCrossFade(
-          firstChild: const SizedBox.shrink(),
-          secondChild: _ThemesList(prof: prof),
-          crossFadeState: isExpanded
+          firstChild:      const SizedBox.shrink(),
+          secondChild:     _ThemesList(prof: prof),
+          crossFadeState:  isExpanded
               ? CrossFadeState.showSecond
               : CrossFadeState.showFirst,
           duration: const Duration(milliseconds: 250),
@@ -189,37 +184,24 @@ class _ThemesList extends StatelessWidget {
       margin: const EdgeInsets.only(left: 74, bottom: 6),
       child: Column(
         children: prof.themes.map((theme) {
-          final isSelected = provider.selectedTheme?.name == theme.name &&
+          final isSelected    = provider.selectedTheme?.name == theme.name &&
               provider.selectedProfessor?.key == prof.key;
           final isDownloading = provider.isThemeDownloading(theme);
-          final isRefreshing = provider.isThemeRefreshing(theme);
+          final isRefreshing  = provider.isThemeRefreshing(theme);
 
           return InkWell(
-            onTap: () {
-              // IMPORTANT : sélectionner le thème AVANT de fermer le drawer.
-              // selectTheme() notifie immédiatement (affichage liste/lecteur)
-              // puis charge l'audio en tâche de fond. Fermer le drawer
-              // d'abord (comme avant) pouvait avaler ce premier
-              // notifyListeners() pendant la transition de fermeture,
-              // obligeant l'utilisateur à taper une 2ème fois pour voir
-              // la page liste/lecteur apparaître.
-              provider.selectTheme(prof, theme);
-              Navigator.pop(context);
-            },
+            onTap: () => _onThemeTap(context, provider, prof, theme),
             borderRadius: BorderRadius.circular(6),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
               decoration: BoxDecoration(
-                color: isSelected
-                    ? kGold.withOpacity(0.12)
-                    : Colors.transparent,
+                color: isSelected ? kGold.withOpacity(0.12) : Colors.transparent,
                 borderRadius: BorderRadius.circular(6),
               ),
               child: Row(
                 children: [
                   Container(
-                    width: 6,
-                    height: 6,
+                    width: 6, height: 6,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: isSelected ? kGold : kGold.withOpacity(0.5),
@@ -234,19 +216,14 @@ class _ThemesList extends StatelessWidget {
                             ? Colors.white
                             : Colors.white.withOpacity(0.72),
                         fontSize: 12,
-                        fontWeight: isSelected
-                            ? FontWeight.w600
-                            : FontWeight.normal,
+                        fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
                       ),
                     ),
                   ),
                   const SizedBox(width: 6),
-                  // Bouton action : Rafraîchir / Télécharger / Badge
                   _ThemeActionButton(
-                    theme: theme,
-                    prof: prof,
-                    isDownloading: isDownloading,
-                    isRefreshing: isRefreshing,
+                    theme: theme, prof: prof,
+                    isDownloading: isDownloading, isRefreshing: isRefreshing,
                   ),
                 ],
               ),
@@ -256,14 +233,170 @@ class _ThemesList extends StatelessWidget {
       ),
     );
   }
+
+  /// Gère le tap sur un thème :
+  ///   1. Vérifie hors-ligne → dialog "Télécharger"
+  ///   2. Vérifie reprise possible → dialog "Continuer ?"
+  ///   3. Sinon → sélectionne directement
+  Future<void> _onThemeTap(
+    BuildContext context,
+    AppProvider provider,
+    Professor prof,
+    AudioTheme theme,
+  ) async {
+    Navigator.pop(context); // fermer le drawer d'abord
+
+    final result = await provider.selectTheme(prof, theme);
+
+    if (result == null) return; // tout bon
+
+    if (result == 'offline_theme') {
+      if (context.mounted) _showOfflineThemeDialog(context, provider, theme, prof);
+      return;
+    }
+
+    if (result.startsWith('resume:')) {
+      final parts      = result.split(':');
+      final trackIndex = int.tryParse(parts[1]) ?? 0;
+      final positionMs = int.tryParse(parts[2]) ?? 0;
+      if (context.mounted) {
+        _showResumeDialog(context, provider, prof, theme, trackIndex, positionMs);
+      }
+    }
+  }
 }
 
-/// Bouton icône contextuel à droite du nom de thème dans la sidebar
+// ── Dialogs ──────────────────────────────────────────────────────────────────
+
+void _showOfflineThemeDialog(
+  BuildContext context,
+  AppProvider provider,
+  AudioTheme theme,
+  Professor prof,
+) {
+  showDialog(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      icon: Icon(Icons.wifi_off_rounded, color: kNavy, size: 40),
+      title: const Text(
+        'Hors-ligne',
+        textAlign: TextAlign.center,
+        style: TextStyle(fontWeight: FontWeight.w700),
+      ),
+      content: Text(
+        'Aucun audio de « ${theme.name} » n\'est disponible hors-ligne.\n\n'
+        'Connectez-vous à internet ou téléchargez les audios pour les écouter sans connexion.',
+        textAlign: TextAlign.center,
+        style: const TextStyle(fontSize: 13, height: 1.5),
+      ),
+      actionsAlignment: MainAxisAlignment.center,
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx),
+          child: Text('Fermer', style: TextStyle(color: Colors.grey.shade600)),
+        ),
+        ElevatedButton.icon(
+          onPressed: () {
+            Navigator.pop(ctx);
+            showDownloadSheet(ctx, theme, prof);
+          },
+          icon: const Icon(Icons.download_rounded, size: 16),
+          label: const Text('Télécharger'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: kNavy,
+            foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+void _showResumeDialog(
+  BuildContext context,
+  AppProvider provider,
+  Professor prof,
+  AudioTheme theme,
+  int trackIndex,
+  int positionMs,
+) {
+  final trackName = trackIndex < theme.tracks.length
+      ? formatAudioTitle(theme.tracks[trackIndex].filename)
+      : 'Piste ${trackIndex + 1}';
+  final pos = Duration(milliseconds: positionMs);
+  final posStr = '${pos.inMinutes.toString().padLeft(2, '0')}:${(pos.inSeconds % 60).toString().padLeft(2, '0')}';
+
+  showDialog(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      icon: Icon(Icons.play_circle_outline_rounded, color: kNavy, size: 40),
+      title: const Text(
+        'Continuer la lecture ?',
+        textAlign: TextAlign.center,
+        style: TextStyle(fontWeight: FontWeight.w700),
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            theme.name,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: kNavy,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            '« $trackName »',
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 12),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'à $posStr',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+          ),
+        ],
+      ),
+      actionsAlignment: MainAxisAlignment.center,
+      actions: [
+        TextButton(
+          onPressed: () {
+            Navigator.pop(ctx);
+            provider.startFresh(prof, theme);
+          },
+          child: Text('Depuis le début',
+              style: TextStyle(color: Colors.grey.shade600)),
+        ),
+        ElevatedButton.icon(
+          onPressed: () {
+            Navigator.pop(ctx);
+            provider.confirmResume(prof, theme, trackIndex, positionMs);
+          },
+          icon: const Icon(Icons.play_arrow_rounded, size: 16),
+          label: const Text('Reprendre'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: kNavy,
+            foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
 class _ThemeActionButton extends StatelessWidget {
   final AudioTheme theme;
-  final Professor prof;
-  final bool isDownloading;
-  final bool isRefreshing;
+  final Professor  prof;
+  final bool       isDownloading;
+  final bool       isRefreshing;
 
   const _ThemeActionButton({
     required this.theme,
@@ -275,18 +408,11 @@ class _ThemeActionButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final provider = context.read<AppProvider>();
+    if (theme.tracks.isEmpty) return const SizedBox.shrink();
 
-    // Thème sans aucun audio (liste vide dans le JSON) → pas de bouton
-    // télécharger/rafraîchir, rien à gérer pour ce thème.
-    if (theme.tracks.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    // En cours de traitement → spinner
     if (isDownloading || isRefreshing) {
       return SizedBox(
-        width: 18,
-        height: 18,
+        width: 18, height: 18,
         child: CircularProgressIndicator(
           strokeWidth: 2,
           valueColor: AlwaysStoppedAnimation(kGold),
@@ -294,86 +420,26 @@ class _ThemeActionButton extends StatelessWidget {
       );
     }
 
-    // Thème avec des audios locaux téléchargés → bouton Rafraîchir
     if (theme.hasLocalDownloads) {
       return Tooltip(
         message: 'Synchroniser avec le dépôt',
         child: GestureDetector(
-          onTap: () => _onRefreshTap(context, provider),
-          child: Icon(
-            Icons.sync_rounded,
-            color: Colors.green.shade400,
-            size: 18,
-          ),
+          onTap: () => showRefreshSheet(context, theme, prof),
+          child: Icon(Icons.sync_rounded, color: Colors.green.shade400, size: 18),
         ),
       );
     }
 
-    // Aucun audio local (peut être bundled ou rien) → bouton Télécharger
-    // Afficher seulement si le thème n'est pas uniquement bundled
-    // (si bundled, les assets embarqués suffisent mais on permet quand même le dl)
     return Tooltip(
       message: theme.isBundledOnly
-          ? 'Télécharger pour usage hors-ligne amélioré'
+          ? 'Télécharger pour usage hors-ligne'
           : 'Télécharger les audios',
       child: GestureDetector(
-        onTap: () => _onDownloadTap(context, provider),
+        onTap: () => showDownloadSheet(context, theme, prof),
         child: Icon(
           Icons.download_rounded,
-          color: theme.isBundledOnly
-              ? kGold.withOpacity(0.6)
-              : kGold,
+          color: theme.isBundledOnly ? kGold.withOpacity(0.6) : kGold,
           size: 18,
-        ),
-      ),
-    );
-  }
-
-  void _onDownloadTap(BuildContext context, AppProvider provider) {
-    showDownloadSheet(context, theme, prof);
-  }
-
-  void _onRefreshTap(BuildContext context, AppProvider provider) {
-    showRefreshSheet(context, theme, prof);
-  }
-}
-
-/// Badge d'état du thème (nombre de pistes / téléchargées)
-class _ThemeBadge extends StatelessWidget {
-  final AudioTheme theme;
-  const _ThemeBadge({required this.theme});
-
-  @override
-  Widget build(BuildContext context) {
-    final count = theme.tracks.length;
-    final available = theme.availableOfflineCount;
-
-    Color bg;
-    String label;
-
-    if (theme.isFullyAvailableOffline) {
-      bg = Colors.green.shade700;
-      label = '$count';
-    } else if (available > 0) {
-      bg = Colors.orange.shade700;
-      label = '$available/$count';
-    } else {
-      bg = Colors.white.withOpacity(0.12);
-      label = '$count';
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Text(
-        label,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 9,
-          fontWeight: FontWeight.w600,
         ),
       ),
     );
@@ -396,8 +462,7 @@ class _InfoTile extends StatelessWidget {
         child: Row(
           children: [
             Container(
-              width: 38,
-              height: 38,
+              width: 38, height: 38,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: Colors.white.withOpacity(0.08),
@@ -407,10 +472,7 @@ class _InfoTile extends StatelessWidget {
             const SizedBox(width: 12),
             Text(
               'Infos & À propos',
-              style: TextStyle(
-                color: Colors.white.withOpacity(0.75),
-                fontSize: 13,
-              ),
+              style: TextStyle(color: Colors.white.withOpacity(0.75), fontSize: 13),
             ),
           ],
         ),

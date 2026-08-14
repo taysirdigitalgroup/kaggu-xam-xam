@@ -10,6 +10,7 @@ import '../services/audio_service.dart';
 import '../services/ad_service.dart';
 import '../services/permission_service.dart';
 import '../services/connectivity_service.dart';
+import '../services/playback_persistence_service.dart';
 import '../utils/string_utils.dart';
 
 enum AppState { loading, ready, error }
@@ -23,10 +24,10 @@ class DownloadState {
   final CancelToken? cancelToken;
 
   const DownloadState({
-    this.isDownloading = false,
-    this.isRefreshing = false,
-    this.currentTrackIndex = 0,
-    this.totalTracks = 0,
+    this.isDownloading        = false,
+    this.isRefreshing         = false,
+    this.currentTrackIndex    = 0,
+    this.totalTracks          = 0,
     this.currentTrackProgress = 0,
     this.cancelToken,
   });
@@ -38,36 +39,39 @@ class DownloadState {
 }
 
 class AppProvider extends ChangeNotifier {
-  final BibliothequeService   _biblioService     = BibliothequeService();
-  final DownloadService       _downloadService   = DownloadService();
-  final AudioPlayerService    audioService       = AudioPlayerService();
-  final AdService             adService          = AdService();
-  final PermissionService     permissionService  = PermissionService();
-  final ConnectivityService   connectivityService = ConnectivityService();
+  final BibliothequeService        _biblioService      = BibliothequeService();
+  final DownloadService            _downloadService    = DownloadService();
+  final AudioPlayerService         audioService        = AudioPlayerService();
+  final AdService                  adService           = AdService();
+  final PermissionService          permissionService   = PermissionService();
+  final ConnectivityService        connectivityService = ConnectivityService();
+  final PlaybackPersistenceService _persistence        = PlaybackPersistenceService();
 
-  AppState state       = AppState.loading;
-  String errorMessage  = '';
+  AppState state      = AppState.loading;
+  String errorMessage = '';
   List<Professor> professors = [];
 
-  // Sélection courante
   Professor?  selectedProfessor;
   AudioTheme? selectedTheme;
   int         currentTrackIndex = 0;
 
-  // Sidebar expand state
-  final Set<String> expandedProfs = {};
+  // Dernier thème lu (pour WelcomePane)
+  PlaybackState? lastPlaybackState;
 
-  // Téléchargements / rafraîchissements en cours par thème
+  final Set<String> expandedProfs = {};
   final Map<String, DownloadState> downloadStates = {};
 
-  // Lecteur
   double playbackSpeed = 1.0;
   bool   isLooping     = false;
   double volume        = 1.0;
 
-  StreamSubscription<int?>? _currentIndexSub;
+  // Compteur anti-bounce pour la save de position (toutes les ~5s)
+  int _positionSaveTick = 0;
 
-  // ── Initialisation ────────────────────────────────────────────────────
+  StreamSubscription<int?>?     _currentIndexSub;
+  StreamSubscription<Duration>? _positionSub;
+
+  // ── Init ─────────────────────────────────────────────────────────────
 
   Future<void> init() async {
     try {
@@ -78,14 +82,23 @@ class AppProvider extends ChangeNotifier {
       _currentIndexSub = audioService.currentIndexStream.listen((index) {
         if (index != null && index != currentTrackIndex) {
           currentTrackIndex = index;
+          _savePosition(positionMs: 0);
           notifyListeners();
         }
       });
 
+      _positionSub?.cancel();
+      _positionSub = audioService.positionStream.listen((pos) {
+        _positionSaveTick++;
+        // Sauvegarder toutes les ~5 secondes (positionStream émet ~1/s)
+        if (_positionSaveTick % 5 == 0) {
+          _savePosition(positionMs: pos.inMilliseconds);
+        }
+        _checkCompletion(pos);
+      });
+
       await permissionService.requestStorageIfNeeded();
-
       professors = await _biblioService.loadBibliotheque();
-
       await _downloadService.ensureCatalogDirectories(professors);
 
       for (final prof in professors) {
@@ -94,13 +107,44 @@ class AppProvider extends ChangeNotifier {
         }
       }
 
+      lastPlaybackState = await _persistence.loadLast();
       state = AppState.ready;
     } catch (e) {
-      state  = AppState.error;
+      state        = AppState.error;
       errorMessage = e.toString();
     }
     notifyListeners();
   }
+
+  // ── Persistance ───────────────────────────────────────────────────────
+
+  void _savePosition({int? positionMs}) {
+    final prof  = selectedProfessor;
+    final theme = selectedTheme;
+    if (prof == null || theme == null) return;
+    _persistence.save(
+      profKey:    prof.key,
+      profName:   prof.name,
+      themeName:  theme.name,
+      trackIndex: currentTrackIndex,
+      positionMs: positionMs ?? audioService.position.inMilliseconds,
+    );
+  }
+
+  void _checkCompletion(Duration pos) {
+    final theme = selectedTheme;
+    final prof  = selectedProfessor;
+    if (theme == null || prof == null) return;
+    final dur = audioService.duration;
+    if (dur == null || dur.inSeconds == 0) return;
+    final isLastTrack = currentTrackIndex == theme.tracks.length - 1;
+    final nearEnd     = pos.inMilliseconds >= (dur.inMilliseconds * 0.95).toInt();
+    if (isLastTrack && nearEnd) {
+      _persistence.markCompleted(prof.key, theme.name);
+    }
+  }
+
+  // ── Expand sidebar ────────────────────────────────────────────────────
 
   void toggleProfExpand(String profKey) {
     if (expandedProfs.contains(profKey)) {
@@ -113,41 +157,87 @@ class AppProvider extends ChangeNotifier {
 
   // ── Sélection thème ───────────────────────────────────────────────────
 
-  Future<void> selectTheme(Professor prof, AudioTheme theme) async {
+  /// Retourne :
+  ///   null              → lecture lancée (pas de dialog nécessaire)
+  ///   'offline_theme'   → hors-ligne, aucun audio local
+  ///   'resume:N:P'      → reprise possible (trackIndex=N, positionMs=P)
+  Future<String?> selectTheme(
+    Professor prof,
+    AudioTheme theme, {
+    bool forceNew = false,
+  }) async {
     final alreadySelected = selectedProfessor?.key == prof.key &&
         selectedTheme?.name == theme.name;
-    if (alreadySelected) return;
+    if (alreadySelected && !forceNew) return null;
 
+    // Vérification hors-ligne
+    if (!theme.isFullyAvailableOffline) {
+      final hasAnyLocal = theme.tracks.any((t) => t.isAvailableLocally);
+      if (!hasAnyLocal) {
+        final connected = await connectivityService.hasConnection();
+        if (!connected) return 'offline_theme';
+      }
+    }
+
+    // Vérification reprise (par thème)
+    if (!forceNew) {
+      final saved = await _persistence.loadForTheme(prof.key, theme.name);
+      if (saved != null && !saved.completed && saved.hasProgress) {
+        return 'resume:${saved.trackIndex}:${saved.positionMs}';
+      }
+    }
+
+    await _doLoadTheme(prof, theme, trackIndex: 0, positionMs: 0);
+    return null;
+  }
+
+  Future<void> confirmResume(
+      Professor prof, AudioTheme theme, int trackIndex, int positionMs) async {
+    await _doLoadTheme(prof, theme, trackIndex: trackIndex, positionMs: positionMs);
+  }
+
+  Future<void> startFresh(Professor prof, AudioTheme theme) async {
+    // Réinitialiser la sauvegarde de ce thème
+    await _persistence.save(
+      profKey: prof.key, profName: prof.name,
+      themeName: theme.name, trackIndex: 0, positionMs: 0,
+    );
+    await _doLoadTheme(prof, theme, trackIndex: 0, positionMs: 0);
+  }
+
+  Future<void> _doLoadTheme(
+    Professor prof,
+    AudioTheme theme, {
+    required int trackIndex,
+    required int positionMs,
+  }) async {
     selectedProfessor = prof;
     selectedTheme     = theme;
-    currentTrackIndex = 0;
+    currentTrackIndex = trackIndex;
     notifyListeners();
 
     await adService.showInterstitialIfReady();
 
     if (theme.tracks.isNotEmpty) {
-      // Passer le professeur pour l'artwork de la notification
       await audioService.loadTheme(
-        theme,
-        startIndex: 0,
-        professor: prof,
+        theme, startIndex: trackIndex, professor: prof,
       );
+      if (positionMs > 0) {
+        await audioService.seekTo(Duration(milliseconds: positionMs));
+      }
     }
+
+    lastPlaybackState = await _persistence.loadLast();
     notifyListeners();
   }
 
-  // ── Sélection piste avec vérification hors-ligne ─────────────────────
+  // ── Sélection piste ──────────────────────────────────────────────────
 
-  /// Sélectionne une piste.
-  /// Retourne un message d'erreur si la piste n'est pas disponible
-  /// hors-ligne ET qu'il n'y a pas de connexion, null sinon.
   Future<String?> selectTrack(int index) async {
     final theme = selectedTheme;
     if (theme == null) return null;
-
     final track = theme.tracks[index];
 
-    // Si la piste n'est pas disponible localement, vérifier la connexion
     if (!track.isAvailableLocally) {
       final connected = await connectivityService.hasConnection();
       if (!connected) {
@@ -157,30 +247,29 @@ class AppProvider extends ChangeNotifier {
     }
 
     if (currentTrackIndex == index) return null;
-
     currentTrackIndex = index;
     await audioService.seekToIndex(index);
+    _savePosition(positionMs: 0);
     notifyListeners();
-    return null; // pas d'erreur
+    return null;
   }
 
   Future<void> togglePlayPause() async {
     if (audioService.isPlaying) {
       await audioService.pause();
     } else {
+      // Utilise play() robuste (gère le cas completed)
       await audioService.play();
     }
     notifyListeners();
   }
 
-  // ── Clé de thème ──────────────────────────────────────────────────────
+  // ── Téléchargement ────────────────────────────────────────────────────
 
   String _themeKey(AudioTheme t) {
     if (t.tracks.isEmpty) return '${t.profKey}_${toSlug(t.name)}';
     return '${t.profKey}_${t.tracks.first.themeKey}';
   }
-
-  // ── État des téléchargements ──────────────────────────────────────────
 
   bool isThemeDownloading(AudioTheme theme) =>
       downloadStates[_themeKey(theme)]?.isDownloading == true;
@@ -191,32 +280,25 @@ class AppProvider extends ChangeNotifier {
   DownloadState? getDownloadState(AudioTheme theme) =>
       downloadStates[_themeKey(theme)];
 
-  // ── Téléchargement ────────────────────────────────────────────────────
-
   Future<void> downloadTheme(AudioTheme theme) async {
-    final key = _themeKey(theme);
+    final key         = _themeKey(theme);
     final cancelToken = CancelToken();
-    final total = theme.tracks.where((t) => !t.isDownloaded).length;
+    final total       = theme.tracks.where((t) => !t.isDownloaded).length;
     if (total == 0) return;
 
     downloadStates[key] = DownloadState(
-      isDownloading: true,
-      currentTrackIndex: 0,
-      totalTracks: total,
-      cancelToken: cancelToken,
+      isDownloading: true, currentTrackIndex: 0,
+      totalTracks: total, cancelToken: cancelToken,
     );
     notifyListeners();
 
     int doneCount = 0;
     await _downloadService.downloadTheme(
-      theme: theme,
-      cancelToken: cancelToken,
+      theme: theme, cancelToken: cancelToken,
       onTrackProgress: (track, progress) {
         downloadStates[key] = DownloadState(
-          isDownloading: true,
-          currentTrackIndex: doneCount,
-          totalTracks: total,
-          currentTrackProgress: progress,
+          isDownloading: true, currentTrackIndex: doneCount,
+          totalTracks: total, currentTrackProgress: progress,
           cancelToken: cancelToken,
         );
         track.downloadProgress = progress;
@@ -225,10 +307,8 @@ class AppProvider extends ChangeNotifier {
       onTrackDone: (track) {
         doneCount++;
         downloadStates[key] = DownloadState(
-          isDownloading: true,
-          currentTrackIndex: doneCount,
-          totalTracks: total,
-          cancelToken: cancelToken,
+          isDownloading: true, currentTrackIndex: doneCount,
+          totalTracks: total, cancelToken: cancelToken,
         );
         notifyListeners();
       },
@@ -236,38 +316,49 @@ class AppProvider extends ChangeNotifier {
     );
 
     downloadStates.remove(key);
+    if (selectedTheme?.name == theme.name && selectedProfessor != null) {
+      await _reloadCurrentThemeLocally();
+    }
     notifyListeners();
   }
 
-  // ── Rafraîchissement (delete-diff) ───────────────────────────────────
+  Future<void> _reloadCurrentThemeLocally() async {
+    final prof  = selectedProfessor;
+    final theme = selectedTheme;
+    if (prof == null || theme == null) return;
+
+    final wasPlaying      = audioService.isPlaying;
+    final savedIndex      = currentTrackIndex;
+    final savedPositionMs = audioService.position.inMilliseconds;
+
+    await _downloadService.refreshDownloadStatus(theme);
+    await audioService.loadTheme(theme, startIndex: savedIndex, professor: prof);
+    if (savedPositionMs > 0) {
+      await audioService.seekTo(Duration(milliseconds: savedPositionMs));
+    }
+    if (!wasPlaying) await audioService.pause();
+  }
 
   Future<void> refreshTheme(AudioTheme theme) async {
-    final key = _themeKey(theme);
-    final cancelToken = CancelToken();
+    final key          = _themeKey(theme);
+    final cancelToken  = CancelToken();
     final localMissing = theme.tracks.where((t) => !t.isDownloaded).length;
 
     downloadStates[key] = DownloadState(
-      isDownloading: true,
-      isRefreshing: true,
-      currentTrackIndex: 0,
-      totalTracks: localMissing,
+      isDownloading: true, isRefreshing: true,
+      currentTrackIndex: 0, totalTracks: localMissing,
       cancelToken: cancelToken,
     );
     notifyListeners();
 
     int doneCount = 0;
-
     await _downloadService.refreshTheme(
-      theme: theme,
-      cancelToken: cancelToken,
+      theme: theme, cancelToken: cancelToken,
       onTrackProgress: (track, progress) {
         downloadStates[key] = DownloadState(
-          isDownloading: true,
-          isRefreshing: true,
-          currentTrackIndex: doneCount,
-          totalTracks: localMissing,
-          currentTrackProgress: progress,
-          cancelToken: cancelToken,
+          isDownloading: true, isRefreshing: true,
+          currentTrackIndex: doneCount, totalTracks: localMissing,
+          currentTrackProgress: progress, cancelToken: cancelToken,
         );
         track.downloadProgress = progress;
         notifyListeners();
@@ -275,26 +366,26 @@ class AppProvider extends ChangeNotifier {
       onTrackDone: (track) {
         doneCount++;
         downloadStates[key] = DownloadState(
-          isDownloading: true,
-          isRefreshing: true,
-          currentTrackIndex: doneCount,
-          totalTracks: localMissing,
+          isDownloading: true, isRefreshing: true,
+          currentTrackIndex: doneCount, totalTracks: localMissing,
           cancelToken: cancelToken,
         );
         notifyListeners();
       },
-      onTrackDeleted: (filename) => debugPrint('Deleted: $filename'),
-      onError:        (err)      => debugPrint('Refresh error: $err'),
+      onTrackDeleted: (f)   => debugPrint('Deleted: $f'),
+      onError:        (err) => debugPrint('Refresh error: $err'),
     );
 
     downloadStates.remove(key);
+    if (selectedTheme?.name == theme.name && selectedProfessor != null) {
+      await _reloadCurrentThemeLocally();
+    }
     notifyListeners();
   }
 
   Future<void> cancelDownload(AudioTheme theme) async {
-    final key = _themeKey(theme);
-    downloadStates[key]?.cancelToken?.cancel();
-    downloadStates.remove(key);
+    downloadStates[_themeKey(theme)]?.cancelToken?.cancel();
+    downloadStates.remove(_themeKey(theme));
     notifyListeners();
   }
 
@@ -326,6 +417,7 @@ class AppProvider extends ChangeNotifier {
   @override
   void dispose() {
     _currentIndexSub?.cancel();
+    _positionSub?.cancel();
     audioService.dispose();
     adService.dispose();
     super.dispose();
