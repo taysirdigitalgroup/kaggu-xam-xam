@@ -1,6 +1,17 @@
-# Kaggu Xam Xam 🎙️
+<p align="center">
+  <img src="assets/images/kxx_icon.png" width="120" alt="Icône Kaggu Xam Xam" />
+</p>
 
-Application Flutter d'enseignements islamiques audio — **Taysir Digital Group (TDG)**
+<h1 align="center">Kaggu Xam Xam 🎙️</h1>
+
+<p align="center">
+  Application Flutter d'enseignements islamiques audio<br/>
+  <strong>Taysir Digital Group (TDG)</strong>
+</p>
+
+<p align="center">
+  <em>Vos rêves, nos défis.</em>
+</p>
 
 ---
 
@@ -18,7 +29,6 @@ kaggu_xam_xam/
 │   │   ├── bibliotheque_service.dart      # Chargement JSON (remote → local → asset)
 │   │   ├── download_service.dart          # Téléchargement, retry, suppression
 │   │   ├── audio_service.dart             # Lecteur just_audio + artwork notification
-│   │   ├── ad_service.dart                # AdMob bannière + interstitiel (cooldown 3min)
 │   │   ├── connectivity_service.dart      # Détection réseau hors-ligne
 │   │   ├── permission_service.dart        # Permissions stockage Android
 │   │   └── playback_persistence_service.dart  # Sauvegarde/restauration position lecture
@@ -29,10 +39,9 @@ kaggu_xam_xam/
 │   │   ├── sidebar_drawer.dart            # Drawer profs/thèmes + dialogs offline/resume
 │   │   ├── audio_track_list.dart          # Liste pistes + dialog hors-ligne piste
 │   │   ├── audio_player_widget.dart       # Lecteur complet (slider, vitesse, boucle)
-│   │   ├── download_sheet.dart            # Bottom sheet téléchargement/suppression
-│   │   └── banner_ad_widget.dart          # Bannière AdMob
+│   │   └── download_sheet.dart            # Bottom sheet téléchargement/suppression
 │   └── utils/
-│       ├── constants.dart                 # URLs, IDs AdMob, constantes réseau, infos app
+│       ├── constants.dart                 # URLs, constantes réseau, infos app
 │       ├── app_theme.dart                 # Thème Material 3 (navy + gold)
 │       └── string_utils.dart             # formatAudioTitle, formatDuration, toSlug
 ├── assets/
@@ -68,7 +77,7 @@ kaggu_xam_xam/
 |-------|---------|
 | Flutter SDK | ≥ 3.22 |
 | Dart SDK | ≥ 3.2 |
-| Android NDK | **28.2.13676358** (requis par les plugins audio/ads) |
+| Android NDK | **28.2.13676358** (requis par les plugins audio) |
 | Android compileSdk | **36** |
 | Android minSdk | **24** (Android 7.0+) |
 | Java | 17+ |
@@ -198,22 +207,6 @@ kxxDatas/
 
 **Aucune autre modification de code n'est nécessaire.**
 
-### Configurer AdMob en production
-
-Dans `lib/utils/constants.dart` :
-```dart
-static const String admobAppId           = 'ca-app-pub-XXXXX~XXXXXXXX';
-static const String bannerAdUnitId       = 'ca-app-pub-XXXXX/XXXXXXXX';
-static const String interstitialAdUnitId = 'ca-app-pub-XXXXX/XXXXXXXX';
-```
-
-Dans `android/app/src/main/AndroidManifest.xml` :
-```xml
-<meta-data
-    android:name="com.google.android.gms.ads.APPLICATION_ID"
-    android:value="ca-app-pub-XXXXX~XXXXXXXX" />
-```
-
 ---
 
 ## 🎵 Fonctionnement de la bibliothèque hybride
@@ -258,15 +251,6 @@ Au démarrage, l'app tente de récupérer `bibliotheque.json` depuis GitHub :
 
 ---
 
-## 📢 Publicité
-
-| Type | Déclencheur |
-|------|-------------|
-| Bannière | Toujours visible en bas (Home + Infos) |
-| Interstitiel | Clic sur un thème (1er clic ou si ≥ 3 min depuis la dernière pub) |
-
----
-
 ## 🔧 Dépendances principales
 
 | Package | Usage |
@@ -277,10 +261,9 @@ Au démarrage, l'app tente de récupérer `bibliotheque.json` depuis GitHub :
 | `provider` | State management |
 | `dio` | Téléchargements HTTP avec progression + retry |
 | `path_provider` | Chemins de stockage |
-| `shared_preferences` | Persistance hash, timing pub, position lecture |
+| `shared_preferences` | Persistance hash catalogue, position lecture |
 | `crypto` | Hash MD5 du JSON catalogue |
 | `marquee` | Défilement des titres longs dans le lecteur |
-| `google_mobile_ads` | AdMob bannière + interstitiel |
 | `permission_handler` | Permissions stockage Android |
 | `connectivity_plus` | Détection hors-ligne avant lecture/téléchargement |
 
@@ -305,8 +288,6 @@ BibliothequeService ──── hash MD5 ──── SharedPreferences
         │
         ├──► AudioPlayerService (just_audio)
         │         └── artUri → fichier cache temp (image prof → notification)
-        │
-        ├──► AdService (interstitiel cooldown 3min)
         │
         └──► UI
               ├── SidebarDrawer (profs/thèmes, dialogs offline/resume)
