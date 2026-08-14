@@ -79,10 +79,11 @@ class AudioPlayerService {
     });
   }
 
-  /// Charge le thème et démarre à [startIndex].
+  /// Charge le thème et démarre à [startIndex] / [startPosition].
   Future<void> loadTheme(
     AudioTheme theme, {
     int startIndex = 0,
+    Duration startPosition = Duration.zero,
     Professor? professor,
   }) async {
     Uri? artworkUri;
@@ -96,10 +97,15 @@ class AudioPlayerService {
       sources.add(_buildSource(uri, track, theme, artworkUri));
     }
 
+    // On passe la position de reprise directement à setAudioSource plutôt
+    // que de faire un seek() après coup : un seek() émis juste après play()
+    // pendant que la source est encore en train de devenir "ready" est
+    // parfois ignoré par ExoPlayer tant qu'aucun nouveau cycle play/pause
+    // n'est déclenché (d'où le seek qui ne "rattrapait" qu'à la pause).
     await _player.setAudioSource(
       ConcatenatingAudioSource(children: sources),
       initialIndex:    startIndex,
-      initialPosition: Duration.zero,
+      initialPosition: startPosition,
     );
     await _player.play();
   }

@@ -215,11 +215,11 @@ class AppProvider extends ChangeNotifier {
 
     if (theme.tracks.isNotEmpty) {
       await audioService.loadTheme(
-        theme, startIndex: trackIndex, professor: prof,
+        theme,
+        startIndex: trackIndex,
+        startPosition: Duration(milliseconds: positionMs),
+        professor: prof,
       );
-      if (positionMs > 0) {
-        await audioService.seekTo(Duration(milliseconds: positionMs));
-      }
     }
 
     lastPlaybackState = await _persistence.loadLast();
@@ -327,10 +327,12 @@ class AppProvider extends ChangeNotifier {
     final savedPositionMs = audioService.position.inMilliseconds;
 
     await _downloadService.refreshDownloadStatus(theme);
-    await audioService.loadTheme(theme, startIndex: savedIndex, professor: prof);
-    if (savedPositionMs > 0) {
-      await audioService.seekTo(Duration(milliseconds: savedPositionMs));
-    }
+    await audioService.loadTheme(
+      theme,
+      startIndex: savedIndex,
+      startPosition: Duration(milliseconds: savedPositionMs),
+      professor: prof,
+    );
     if (!wasPlaying) await audioService.pause();
   }
 
