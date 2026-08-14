@@ -33,9 +33,6 @@ dependencies:
   flutter_slidable: ^3.0.1
   lottie: ^3.0.0
 
-  # AdMob
-  google_mobile_ads: ^5.1.0
-
   # Connectivité réseau (détection hors-ligne)
   connectivity_plus: ^6.0.3
 

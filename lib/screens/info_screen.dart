@@ -5,7 +5,6 @@ import 'package:provider/provider.dart';
 import '../providers/app_provider.dart';
 import '../utils/app_theme.dart';
 import '../utils/constants.dart';
-import '../widgets/banner_ad_widget.dart';
 
 class InfoScreen extends StatelessWidget {
   const InfoScreen({super.key});
@@ -256,7 +255,6 @@ class InfoScreen extends StatelessWidget {
               ],
             ),
           ),
-          const BannerAdWidget(),
         ],
       ),
     );

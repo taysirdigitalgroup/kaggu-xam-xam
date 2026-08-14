@@ -10,7 +10,6 @@ import '../utils/string_utils.dart';
 import '../widgets/sidebar_drawer.dart';
 import '../widgets/audio_track_list.dart';
 import '../widgets/audio_player_widget.dart';
-import '../widgets/banner_ad_widget.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -93,7 +92,6 @@ class HomeScreen extends StatelessWidget {
                 : const _WelcomePane(),
           ),
           const AudioPlayerWidget(),
-          const BannerAdWidget(),
         ],
       ),
     );

@@ -7,7 +7,6 @@ import '../models/models.dart';
 import '../services/bibliotheque_service.dart';
 import '../services/download_service.dart';
 import '../services/audio_service.dart';
-import '../services/ad_service.dart';
 import '../services/permission_service.dart';
 import '../services/connectivity_service.dart';
 import '../services/playback_persistence_service.dart';
@@ -42,7 +41,6 @@ class AppProvider extends ChangeNotifier {
   final BibliothequeService        _biblioService      = BibliothequeService();
   final DownloadService            _downloadService    = DownloadService();
   final AudioPlayerService         audioService        = AudioPlayerService();
-  final AdService                  adService           = AdService();
   final PermissionService          permissionService   = PermissionService();
   final ConnectivityService        connectivityService = ConnectivityService();
   final PlaybackPersistenceService _persistence        = PlaybackPersistenceService();
@@ -75,7 +73,6 @@ class AppProvider extends ChangeNotifier {
 
   Future<void> init() async {
     try {
-      adService.initialize();
       await audioService.init();
 
       _currentIndexSub?.cancel();
@@ -215,8 +212,6 @@ class AppProvider extends ChangeNotifier {
     selectedTheme     = theme;
     currentTrackIndex = trackIndex;
     notifyListeners();
-
-    await adService.showInterstitialIfReady();
 
     if (theme.tracks.isNotEmpty) {
       await audioService.loadTheme(
@@ -419,7 +414,6 @@ class AppProvider extends ChangeNotifier {
     _currentIndexSub?.cancel();
     _positionSub?.cancel();
     audioService.dispose();
-    adService.dispose();
     super.dispose();
   }
 }

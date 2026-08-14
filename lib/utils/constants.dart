@@ -29,20 +29,8 @@ class AppConstants {
   static const String localBiblioFilename = 'bibliotheque.json';
 
   // ══════════════════════════════════════════════════════════════════════
-  // ADMOB  (IDs de test — remplacer par les vrais en production)
-  // ══════════════════════════════════════════════════════════════════════
-  static const String admobAppId =
-      'ca-app-pub-3940256099942544~3347511713';
-  static const String bannerAdUnitId =
-      'ca-app-pub-3940256099942544/6300978111';
-  static const String interstitialAdUnitId =
-      'ca-app-pub-3940256099942544/1033173712';
-
-  // ══════════════════════════════════════════════════════════════════════
   // TIMINGS & RÉSEAU
   // ══════════════════════════════════════════════════════════════════════
-  static const int interstitialCooldownSeconds = 180; // 3 min entre 2 pubs
-
   static const int connectTimeoutSec      = 15;  // timeout connexion
   static const int biblioReceiveTimeoutSec = 20; // timeout réception JSON
   static const int audioReceiveTimeoutMin  = 15; // timeout réception audio
@@ -52,7 +40,6 @@ class AppConstants {
   // CLÉS SHAREDPREFERENCES
   // ══════════════════════════════════════════════════════════════════════
   static const String prefBiblioHash      = 'biblio_hash';
-  static const String prefLastAdTime      = 'last_interstitial_time';
   static const String prefDeployedVersion = 'assets_deployed_version';
 
   // ══════════════════════════════════════════════════════════════════════
