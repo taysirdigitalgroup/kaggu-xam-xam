@@ -139,7 +139,7 @@ class InfoScreen extends StatelessWidget {
                         icon: Icons.language,
                         iconColor: const Color(0xFF1565C0),
                         label: 'Site web TDG',
-                        onTap: () => _launch('https://taysirdigitalgroup.com'),
+                        onTap: () => _launch('https://taysirdigitalgroup.github.io/'),
                       ),
                     ],
                   ),
