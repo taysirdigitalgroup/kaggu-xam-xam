@@ -7,6 +7,7 @@ import '../screens/info_screen.dart';
 import '../utils/app_theme.dart';
 import '../utils/string_utils.dart';
 import 'download_sheet.dart';
+import 'professor_avatar.dart';
 
 class SidebarDrawer extends StatelessWidget {
   const SidebarDrawer({super.key});
@@ -70,34 +71,13 @@ class _ProfessorTile extends StatelessWidget {
             child: Row(
               children: [
                 // Avatar
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(color: kGold, width: 2.5),
-                  ),
-                  child: ClipOval(
-                    child: Image.asset(
-                      prof.imagePath,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(
-                        color: kNavy,
-                        child: Center(
-                          child: Text(
-                            prof.name.length >= 2
-                                ? prof.name.substring(0, 2).toUpperCase()
-                                : prof.name.toUpperCase(),
-                            style: TextStyle(
-                              color: kGold,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
+                ProfessorAvatar(
+                  professor: prof,
+                  size: 48,
+                  borderWidth: 2.5,
+                  borderColor: kGold,
+                  backgroundColor: kNavy,
+                  textColor: kGold,
                 ),
                 const SizedBox(width: 12),
                 // Nom + Rôle — N thèmes

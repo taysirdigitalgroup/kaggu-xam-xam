@@ -5,6 +5,7 @@ import 'package:dio/dio.dart';
 import 'package:just_audio/just_audio.dart';
 import '../models/models.dart';
 import '../services/bibliotheque_service.dart';
+import '../services/professors_service.dart';
 import '../services/download_service.dart';
 import '../services/audio_service.dart';
 import '../services/permission_service.dart';
@@ -39,6 +40,7 @@ class DownloadState {
 
 class AppProvider extends ChangeNotifier {
   final BibliothequeService        _biblioService      = BibliothequeService();
+  final ProfessorsService          _professorsService  = ProfessorsService();
   final DownloadService            _downloadService    = DownloadService();
   final AudioPlayerService         audioService        = AudioPlayerService();
   final PermissionService          permissionService   = PermissionService();
@@ -104,11 +106,58 @@ class AppProvider extends ChangeNotifier {
         }
       }
 
+      await _syncProfessorsInfo();
+
       lastPlaybackState = await _persistence.loadLast();
       state = AppState.ready;
     } catch (e) {
       state        = AppState.error;
       errorMessage = e.toString();
+    }
+    notifyListeners();
+  }
+
+  // ── Professeurs (infos + photos dynamiques) ─────────────────────────────
+
+  /// Récupère profs_infos.json, télécharge les photos manquantes, et — si
+  /// le catalogue a changé depuis la dernière fois (nouveau prof, rôle
+  /// modifié, photo remplacée) — resynchronise entièrement les photos.
+  /// Fusionne ensuite le tout sur [professors] et trie par ordre défini.
+  Future<void> _syncProfessorsInfo() async {
+    try {
+      final result = await _professorsService.loadProfessorsInfo();
+
+      if (result.changed) {
+        await _professorsService.refreshImages(result.infos);
+      } else {
+        await _professorsService.ensureImages(result.infos);
+      }
+
+      await _professorsService.applyInfos(professors, result.infos);
+      professors.sort((a, b) => a.order != b.order
+          ? a.order.compareTo(b.order)
+          : a.name.compareTo(b.name));
+    } catch (e) {
+      // Non bloquant : les profs gardent leurs valeurs par défaut
+      // (rôle "Enseignements", photo embarquée) si la synchronisation échoue.
+      debugPrint('[AppProvider] Synchronisation profs_infos.json échouée: $e');
+    }
+  }
+
+  /// Force une resynchronisation complète des infos + photos profs
+  /// (ex : bouton "Actualiser" dans l'UI). Contrairement au flux normal
+  /// d'[init], ceci retélécharge toutes les photos même si le hash du
+  /// catalogue n'a pas changé.
+  Future<void> refreshProfessorsInfo() async {
+    try {
+      final result = await _professorsService.loadProfessorsInfo();
+      await _professorsService.refreshImages(result.infos);
+      await _professorsService.applyInfos(professors, result.infos);
+      professors.sort((a, b) => a.order != b.order
+          ? a.order.compareTo(b.order)
+          : a.name.compareTo(b.name));
+    } catch (e) {
+      debugPrint('[AppProvider] Actualisation profs_infos.json échouée: $e');
     }
     notifyListeners();
   }

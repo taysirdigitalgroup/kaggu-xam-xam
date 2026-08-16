@@ -15,6 +15,15 @@ class AppConstants {
   /// URL racine des audios : $audioBaseUrl/<profKey>/<themeKey>/<filename>
   static const String audioBaseUrl = '$repoBaseUrl/audios';
 
+  /// URL du catalogue distant des informations professeurs
+  /// (nom, rôle, photo, ordre d'affichage) : dossier "professors/" du dépôt.
+  static const String professorsInfosRemoteUrl =
+      '$repoBaseUrl/professors/profs_infos.json';
+
+  /// URL racine des photos de profs : $professorsProfilsBaseUrl/<filename>
+  static const String professorsProfilsBaseUrl =
+      '$repoBaseUrl/professors/profils';
+
   // ══════════════════════════════════════════════════════════════════════
   // ASSETS EMBARQUÉS & STOCKAGE LOCAL
   // ══════════════════════════════════════════════════════════════════════
@@ -27,6 +36,12 @@ class AppConstants {
 
   /// Nom du fichier catalogue sauvegardé localement
   static const String localBiblioFilename = 'bibliotheque.json';
+
+  /// Sous-dossier dans Documents pour les photos de profs téléchargées
+  static const String professorsImagesLocalDir = 'professors/profils';
+
+  /// Nom du fichier catalogue profs_infos sauvegardé localement
+  static const String localProfsInfosFilename = 'profs_infos.json';
 
   // ══════════════════════════════════════════════════════════════════════
   // TIMINGS & RÉSEAU
@@ -41,6 +56,7 @@ class AppConstants {
   // ══════════════════════════════════════════════════════════════════════
   static const String prefBiblioHash      = 'biblio_hash';
   static const String prefDeployedVersion = 'assets_deployed_version';
+  static const String prefProfsInfosHash  = 'profs_infos_hash';
 
   // ══════════════════════════════════════════════════════════════════════
   // INFORMATIONS APP

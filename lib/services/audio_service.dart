@@ -87,8 +87,8 @@ class AudioPlayerService {
     Professor? professor,
   }) async {
     Uri? artworkUri;
-    if (professor != null && professor.imagePath.isNotEmpty) {
-      artworkUri = await _resolveArtworkUri(professor.imagePath);
+    if (professor != null) {
+      artworkUri = await _resolveArtworkUri(professor);
     }
 
     final sources = <AudioSource>[];
@@ -130,8 +130,23 @@ class AudioPlayerService {
     return AudioSource.uri(Uri.parse(uri), tag: tag);
   }
 
-  /// Copie l'asset image dans un fichier cache pour la notification Android.
-  Future<Uri?> _resolveArtworkUri(String assetPath) async {
+  /// Résout l'artwork à afficher dans la notification Android, avec
+  /// priorité à la photo téléchargée dynamiquement (professors/profils/),
+  /// puis repli sur l'asset embarqué dans l'APK.
+  Future<Uri?> _resolveArtworkUri(Professor professor) async {
+    // 1. Photo téléchargée localement — utilisable directement, pas besoin
+    //    de la recopier dans le cache temporaire.
+    final localPath = professor.localImagePath;
+    if (localPath != null) {
+      final f = File(localPath);
+      if (await f.exists()) return Uri.file(f.path);
+    }
+
+    // 2. Repli : asset embarqué, copié en cache (just_audio_background a
+    //    besoin d'une URI de fichier, pas d'une URI asset:///).
+    final assetPath = professor.imagePath;
+    if (assetPath.isEmpty) return null;
+
     if (_artworkCache.containsKey(assetPath)) {
       final p = _artworkCache[assetPath]!;
       if (File(p).existsSync()) return Uri.file(p);

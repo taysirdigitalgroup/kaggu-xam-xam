@@ -59,6 +59,7 @@ flutter:
   assets:
     - assets/images/
     - assets/bibliotheque.json
+    - assets/professors/profs_infos.json
     # Audios embarqués de base (lus en priorité si l'audio local n'existe pas)
     # Structure : assets/audios/<prof_key>/<theme_key>/<fichiers>
     - assets/audios/

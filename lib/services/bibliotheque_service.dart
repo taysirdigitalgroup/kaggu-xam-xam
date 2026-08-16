@@ -26,32 +26,20 @@ class BibliothequeService {
   // CONFIGURATION DES PROFESSEURS
   // ══════════════════════════════════════════════════════════════════════
   //
-  // Pour ajouter un nouveau professeur :
+  // Ce service ne construit que le SQUELETTE des professeurs (nom, clé,
+  // thèmes/pistes audio) à partir de bibliotheque.json. Le rôle affiché,
+  // l'ordre d'affichage et la photo sont désormais entièrement dynamiques :
+  // ils sont récupérés depuis professors/profs_infos.json par
+  // ProfessorsService, puis fusionnés (ProfessorsService.applyInfos) sur
+  // les objets Professor produits ici. Pour ajouter un nouveau professeur,
+  // il suffit donc de :
   //   1. Ajouter son entrée dans bibliotheque.json (dépôt distant)
-  //   2. Ajouter son image dans assets/images/ en respectant la convention :
-  //        toSlug("S Saliou Sow") → "s_saliou_sow"  → assets/images/s_saliou_sow.jpg
-  //        toSlug("S Abdou Rahmane") → "s_abdou_rahmane" → assets/images/s_abdou_rahmane.jpg
-  //      L'image est trouvée AUTOMATIQUEMENT — pas besoin de modifier ce fichier.
-  //   3. Optionnel : ajouter son rôle dans _profRoles ci-dessous.
-  //      Si absent → "Enseignements" par défaut.
-  //
-  // Convention de nommage image :
-  //   Nom JSON  : "S Saliou Sow"
-  //   Slug auto : toSlug("S Saliou Sow") = "s_saliou_sow"
-  //   Fichier   : assets/images/s_saliou_sow.jpg  (ou .jpeg / .png)
+  //   2. Ajouter son entrée dans professors/profs_infos.json (nom, rôle,
+  //      photo, ordre) — voir ProfessorsService pour le format.
+  //   3. Déposer sa photo dans professors/profils/ du dépôt.
+  // Aucune modification du code ni republication de l'app n'est nécessaire.
   //
   // ══════════════════════════════════════════════════════════════════════
-
-  /// Rôles des professeurs — clé = nom exact dans bibliotheque.json
-  /// Ajouter une entrée pour chaque nouveau prof si nécessaire.
-  /// Si absent : "Enseignements" par défaut.
-  static const Map<String, String> _profRoles = {
-    'S Abdou Rahmane': 'Enseignements',
-    'S Bass Khelcom':  'Histoires',
-    'S Sam Mbaye':     'Conférences',
-    // Ajouter ici les prochains profs :
-    // 'S Saliou Sow': 'Khutbas',
-  };
 
   /// Extensions d'images acceptées (dans l'ordre de priorité)
   static const List<String> _imageExtensions = ['jpg', 'jpeg', 'png', 'webp'];
@@ -149,9 +137,11 @@ class BibliothequeService {
         key:       profKey,
         // Convention automatique : toSlug(profName) = nom du fichier image
         // "S Sam Mbaye" → "s_sam_mbaye" → assets/images/s_sam_mbaye.jpg
+        // (repli tant que ProfessorsService n'a pas fourni de photo locale)
         imagePath: _resolveImagePath(profKey),
-        role:      _profRoles[profName] ?? 'Enseignements',
         themes:    themes,
+        // role/order/localImagePath : valeurs par défaut du modèle,
+        // écrasées ensuite par ProfessorsService.applyInfos().
       ));
     });
 

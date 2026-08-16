@@ -8,6 +8,7 @@ import '../utils/app_theme.dart';
 import '../utils/constants.dart';
 import '../utils/string_utils.dart';
 import '../widgets/sidebar_drawer.dart';
+import '../widgets/professor_avatar.dart';
 import '../widgets/audio_track_list.dart';
 import '../widgets/audio_player_widget.dart';
 
@@ -234,24 +235,13 @@ class _ResumeCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               if (prof != null)
-                Container(
-                  width: 42, height: 42,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(color: kGold, width: 2),
-                  ),
-                  child: ClipOval(
-                    child: Image.asset(prof.imagePath, fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(
-                        color: kNavy,
-                        child: Center(child: Text(
-                          prof!.name.substring(0, 2).toUpperCase(),
-                          style: TextStyle(color: kGold,
-                              fontWeight: FontWeight.bold, fontSize: 12),
-                        )),
-                      ),
-                    ),
-                  ),
+                ProfessorAvatar(
+                  professor: prof,
+                  size: 42,
+                  borderWidth: 2,
+                  borderColor: kGold,
+                  backgroundColor: kNavy,
+                  textColor: kGold,
                 ),
               const SizedBox(width: 12),
               Expanded(

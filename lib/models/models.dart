@@ -51,15 +51,35 @@ class AudioTheme {
 class Professor {
   final String name;
   final String key;
-  final String imagePath; // chemin asset local : assets/images/<slug>.jpg
-  final String role;      // ex: "Enseignements", "Histoires", "Conférences"
+
+  /// Image de repli embarquée dans l'APK : assets/images/<key>.jpg
+  /// Utilisée tant que la photo distante n'a pas encore été téléchargée,
+  /// ou si le prof n'a pas (ou plus) d'entrée dans profs_infos.json.
+  final String imagePath;
+
+  /// Chemin du fichier local téléchargé depuis professors/profils/
+  /// (prioritaire sur [imagePath] si non nul et existant sur le disque).
+  /// Renseigné dynamiquement par ProfessorsService après synchronisation.
+  String? localImagePath;
+
+  /// Rôle affiché sous le nom, ex: "Enseignements", "Histoires", "Conférences".
+  /// Valeur par défaut si le prof est absent de profs_infos.json.
+  String role;
+
+  /// Ordre d'affichage dans la liste (plus petit = affiché en premier).
+  /// Valeur par défaut élevée pour reléguer en fin de liste les profs
+  /// non (encore) décrits dans profs_infos.json.
+  int order;
+
   final List<AudioTheme> themes;
 
   Professor({
     required this.name,
     required this.key,
     required this.imagePath,
-    required this.role,
+    this.localImagePath,
+    this.role = 'Enseignements',
+    this.order = 999,
     required this.themes,
   });
 }
