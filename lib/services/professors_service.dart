@@ -4,10 +4,12 @@
 // dépôt distant : dossier "professors/" contenant profs_infos.json (métadonnées)
 // et profils/ (photos). Permet d'ajouter, retirer ou modifier un professeur
 // (nom, rôle, ordre, photo) sans republier l'application.
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -98,12 +100,19 @@ class ProfessorsService {
 
   // ── Chargement du catalogue profs_infos.json ──────────────────────────
   //
-  // Même stratégie que BibliothequeService.loadBibliotheque() :
+  // Stratégie "affichage immédiat + synchro locale en arrière-plan"
+  // (même principe que BibliothequeService.loadBibliotheque) :
   //   1. Tente de récupérer le JSON distant.
-  //   2. Compare son hash MD5 à celui mis en cache (SharedPreferences).
-  //   3. Si différent → sauvegarde locale + hash mis à jour + changed=true.
+  //   2. Retourne IMMÉDIATEMENT la liste parsée depuis ce JSON — sans
+  //      attendre l'écriture disque.
+  //   3. Compare son hash MD5 à celui mis en cache (SharedPreferences).
+  //      Si différent → écriture locale + hash mis à jour EN ARRIÈRE-PLAN
+  //      (non "awaited") + changed=true retourné à l'appelant.
   //   4. En cas d'échec réseau → repli sur le cache local, puis sur l'asset
   //      embarqué assets/professors/profs_infos.json (état "jour 1").
+  // Le cache local est ainsi TOUJOURS remplacé par la dernière version vue
+  // en ligne, jamais figé sur l'état initial, même en cas de déconnexion
+  // juste après cette ouverture.
 
   Future<ProfessorsInfoResult> loadProfessorsInfo() async {
     final prefs = await SharedPreferences.getInstance();
@@ -120,18 +129,22 @@ class ProfessorsService {
           response.data != null &&
           response.data!.trim().isNotEmpty) {
         final remoteJson = response.data!;
-        jsonDecode(remoteJson); // validation JSON avant sauvegarde
+        jsonDecode(remoteJson); // validation JSON avant tout usage
+
+        jsonStr = remoteJson;
 
         final remoteHash = md5.convert(utf8.encode(remoteJson)).toString();
         final cachedHash =
             prefs.getString(AppConstants.prefProfsInfosHash) ?? '';
+        changed = remoteHash != cachedHash;
 
-        if (remoteHash != cachedHash) {
-          await _saveLocalInfos(remoteJson);
-          await prefs.setString(AppConstants.prefProfsInfosHash, remoteHash);
-          changed = true;
+        if (changed) {
+          // Ne PAS attendre : la liste retournée ci-dessous utilise déjà
+          // remoteJson, l'écriture du cache local se fait en arrière-plan
+          // pour ne jamais rester figée sur l'état initial embarqué en
+          // cas de déconnexion juste après cette ouverture.
+          unawaited(_persistLocalInfos(remoteJson, remoteHash, prefs));
         }
-        jsonStr = remoteJson;
       } else {
         jsonStr = await _loadLocalInfos();
       }
@@ -140,6 +153,22 @@ class ProfessorsService {
     }
 
     return ProfessorsInfoResult(_parse(jsonStr), changed);
+  }
+
+  /// Sauvegarde le JSON distant en local et met à jour le hash en cache.
+  /// Détaché (fire-and-forget) de [loadProfessorsInfo] pour ne jamais
+  /// retarder l'affichage.
+  Future<void> _persistLocalInfos(
+    String json,
+    String hash,
+    SharedPreferences prefs,
+  ) async {
+    try {
+      await _saveLocalInfos(json);
+      await prefs.setString(AppConstants.prefProfsInfosHash, hash);
+    } catch (e) {
+      debugPrint('[ProfessorsService] Échec sauvegarde locale: $e');
+    }
   }
 
   Future<void> _saveLocalInfos(String json) async {

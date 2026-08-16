@@ -1,8 +1,10 @@
 // lib/services/bibliotheque_service.dart
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -45,6 +47,16 @@ class BibliothequeService {
   static const List<String> _imageExtensions = ['jpg', 'jpeg', 'png', 'webp'];
 
   // ── Chargement ──────────────────────────────────────────────────────
+  //
+  // Stratégie "affichage immédiat + synchro locale en arrière-plan" :
+  //   1. On récupère le JSON distant.
+  //   2. On le retourne TOUT DE SUITE pour l'affichage (parsing ci-dessous),
+  //      sans attendre l'écriture disque.
+  //   3. Si son hash diffère du cache local, l'écriture du fichier + la
+  //      mise à jour du hash se font en tâche de fond (non "awaited").
+  // Ainsi le cache local est TOUJOURS remplacé par la dernière version vue
+  // en ligne — jamais figé sur les données initiales embarquées — même si
+  // l'utilisateur se retrouve hors-ligne juste après cette ouverture.
 
   Future<List<Professor>> loadBibliotheque() async {
     final prefs = await SharedPreferences.getInstance();
@@ -60,17 +72,19 @@ class BibliothequeService {
           response.data != null &&
           response.data!.trim().isNotEmpty) {
         final remoteJson = response.data!;
-        // Validation JSON avant sauvegarde
+        // Validation JSON avant tout usage
         jsonDecode(remoteJson);
+
+        jsonStr = remoteJson;
 
         final remoteHash = md5.convert(utf8.encode(remoteJson)).toString();
         final cachedHash = prefs.getString(AppConstants.prefBiblioHash) ?? '';
 
         if (remoteHash != cachedHash) {
-          await _saveLocalBiblio(remoteJson);
-          await prefs.setString(AppConstants.prefBiblioHash, remoteHash);
+          // Ne PAS attendre : l'affichage se fait avec remoteJson déjà en
+          // main, l'écriture du cache local se termine en arrière-plan.
+          unawaited(_persistLocalBiblio(remoteJson, remoteHash, prefs));
         }
-        jsonStr = remoteJson;
       } else {
         jsonStr = await _loadLocalBiblio();
       }
@@ -79,6 +93,26 @@ class BibliothequeService {
     }
 
     return _parseBibliotheque(jsonStr);
+  }
+
+  /// Sauvegarde le JSON distant en local et met à jour le hash en cache.
+  /// Volontairement détaché (fire-and-forget) de [loadBibliotheque] :
+  /// l'utilisateur voit déjà les données à jour, cette écriture ne fait
+  /// que garantir qu'un futur lancement hors-ligne retrouve la même
+  /// version — au lieu de rester bloqué sur l'état initial embarqué.
+  Future<void> _persistLocalBiblio(
+    String json,
+    String hash,
+    SharedPreferences prefs,
+  ) async {
+    try {
+      await _saveLocalBiblio(json);
+      await prefs.setString(AppConstants.prefBiblioHash, hash);
+    } catch (e) {
+      // Non bloquant et silencieux pour l'utilisateur : on retentera la
+      // prochaine fois que l'app détecte à nouveau une différence de hash.
+      debugPrint('[BibliothequeService] Échec sauvegarde locale: $e');
+    }
   }
 
   Future<void> _saveLocalBiblio(String json) async {
