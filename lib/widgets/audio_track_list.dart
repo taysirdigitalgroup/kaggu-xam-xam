@@ -7,6 +7,7 @@ import '../providers/app_provider.dart';
 import '../utils/app_theme.dart';
 import '../utils/string_utils.dart';
 import 'download_sheet.dart';
+import 'offline_dialog.dart';
 
 class AudioTrackList extends StatelessWidget {
   final AudioTheme theme;
@@ -55,6 +56,14 @@ class AudioTrackList extends StatelessWidget {
                   ],
                 ),
               ),
+
+              // Bouton "Recommencer" (remet piste 1 / position 0, sans lire)
+              if (theme.tracks.isNotEmpty)
+                IconButton(
+                  onPressed: () => provider.restartTheme(),
+                  icon: Icon(Icons.replay_rounded, color: kNavy.withOpacity(0.55), size: 22),
+                  tooltip: 'Recommencer depuis le début',
+                ),
 
               // Bouton téléchargement (masqué si le thème n'a aucun audio)
               if (theme.tracks.isEmpty)
@@ -126,14 +135,17 @@ class AudioTrackList extends StatelessWidget {
                       track: track,
                       index: index,
                       isCurrent: isCurrent,
-                      // Le tap sur la ligne sélectionne la piste, sauf si
-                      // c'est déjà la piste en cours : dans ce cas
-                      // selectTrack() ne fait rien (cf. AppProvider), et le
-                      // toggle play/pause se fait uniquement via le bouton
-                      // rond dédié (voir _TrackTile ci-dessous).
+                      // Taper sur une piste (n'importe où sur la ligne) est
+                      // TOUJOURS synonyme de Play — voir
+                      // AppProvider.selectTrack. Le bouton rond dédié
+                      // (piste courante + mode live) permet en plus un
+                      // simple toggle play/pause sans reseek.
                       onTap: () async {
                         final error = await provider.selectTrack(index);
-                        if (error != null && ctx.mounted) {
+                        if (error == null || !ctx.mounted) return;
+                        if (error == 'offline_theme') {
+                          showOfflineThemeDialog(ctx, theme, prof);
+                        } else {
                           _showOfflineDialog(ctx, error);
                         }
                       },
@@ -197,21 +209,19 @@ class _TrackTile extends StatelessWidget {
         color: isCurrent ? kGold.withOpacity(0.06) : Colors.transparent,
         child: Row(
           children: [
-            // Numéro / icône lecture (bouton toggle play/pause si en cours)
+            // Numéro / icône lecture. En mode live + piste courante : bouton
+            // toggle play/pause dédié (InkWell imbriqué, intercepte le tap
+            // pour ne pas redéclencher un seek). Sinon : simple visuel — le
+            // tap réel est géré par la ligne entière (onTap ci-dessus), qui
+            // sélectionne ET lance la lecture (clic sur une piste = Play).
             SizedBox(
               width: 36,
               height: 36,
-              child: isCurrent
+              child: isCurrent && provider.isSelectedThemeLoaded
                   ? StreamBuilder<PlayerState>(
                       stream: provider.audioService.playerStateStream,
                       builder: (_, snap) {
                         final playing = snap.data?.playing == true;
-                        // InkWell imbriqué : intercepte le tap avant qu'il
-                        // ne remonte au InkWell parent de la ligne, donc
-                        // taper ce cercle fait UNIQUEMENT un toggle
-                        // play/pause et ne déclenche pas onTap() (qui
-                        // appellerait selectTrack et pourrait sembler
-                        // "réinitialiser" la lecture).
                         return Material(
                           color: Colors.transparent,
                           shape: const CircleBorder(),
@@ -233,22 +243,34 @@ class _TrackTile extends StatelessWidget {
                         );
                       },
                     )
-                  : Container(
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: const Color(0xFFF0F4FF),
-                      ),
-                      child: Center(
-                        child: Text(
-                          '${index + 1}',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
+                  : isCurrent
+                      ? Container(
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
                             color: kNavy,
                           ),
+                          child: const Icon(
+                            Icons.play_arrow,
+                            color: Colors.white,
+                            size: 18,
+                          ),
+                        )
+                      : Container(
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: const Color(0xFFF0F4FF),
+                          ),
+                          child: Center(
+                            child: Text(
+                              '${index + 1}',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: kNavy,
+                              ),
+                            ),
+                          ),
                         ),
-                      ),
-                    ),
             ),
             const SizedBox(width: 12),
 
@@ -271,7 +293,7 @@ class _TrackTile extends StatelessWidget {
                   ),
                   if (isCurrent)
                     Text(
-                      'En lecture',
+                      provider.isSelectedThemeLoaded ? 'En lecture' : 'Prêt à lire',
                       style: TextStyle(
                         fontSize: 10,
                         color: kGold,

@@ -528,10 +528,12 @@ class _ThemesList extends StatelessWidget {
     );
   }
 
-  /// Gère le tap sur un thème :
-  ///   1. Vérifie hors-ligne → dialog "Télécharger"
-  ///   2. Vérifie reprise possible → dialog "Continuer ?"
-  ///   3. Sinon → sélectionne directement
+  /// Gère le tap sur un thème dans le sidebar : ferme le drawer et
+  /// sélectionne le thème (piste 1, ou reprise si disponible) SANS jamais
+  /// démarrer la lecture ni interrompre celle en cours — voir
+  /// [AppProvider.selectTheme]. La lecture ne démarre qu'au clic explicite
+  /// sur Play (bouton du lecteur ou icône ronde d'une piste), qui vérifie
+  /// alors la disponibilité hors-ligne.
   Future<void> _onThemeTap(
     BuildContext context,
     AppProvider provider,
@@ -539,151 +541,8 @@ class _ThemesList extends StatelessWidget {
     AudioTheme theme,
   ) async {
     Navigator.pop(context); // fermer le drawer d'abord
-
-    final result = await provider.selectTheme(prof, theme);
-
-    if (result == null) return; // tout bon
-
-    if (result == 'offline_theme') {
-      if (context.mounted) _showOfflineThemeDialog(context, provider, theme, prof);
-      return;
-    }
-
-    if (result.startsWith('resume:')) {
-      final parts      = result.split(':');
-      final trackIndex = int.tryParse(parts[1]) ?? 0;
-      final positionMs = int.tryParse(parts[2]) ?? 0;
-      if (context.mounted) {
-        _showResumeDialog(context, provider, prof, theme, trackIndex, positionMs);
-      }
-    }
+    await provider.selectTheme(prof, theme);
   }
-}
-
-// ── Dialogs ──────────────────────────────────────────────────────────────────
-
-void _showOfflineThemeDialog(
-  BuildContext context,
-  AppProvider provider,
-  AudioTheme theme,
-  Professor prof,
-) {
-  showDialog(
-    context: context,
-    builder: (ctx) => AlertDialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      icon: Icon(Icons.wifi_off_rounded, color: kNavy, size: 40),
-      title: const Text(
-        'Hors-ligne',
-        textAlign: TextAlign.center,
-        style: TextStyle(fontWeight: FontWeight.w700),
-      ),
-      content: Text(
-        'Aucun audio de « ${theme.name} » n\'est disponible hors-ligne.\n\n'
-        'Connectez-vous à internet ou téléchargez les audios pour les écouter sans connexion.',
-        textAlign: TextAlign.center,
-        style: const TextStyle(fontSize: 13, height: 1.5),
-      ),
-      actionsAlignment: MainAxisAlignment.center,
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(ctx),
-          child: Text('Fermer', style: TextStyle(color: Colors.grey.shade600)),
-        ),
-        ElevatedButton.icon(
-          onPressed: () {
-            Navigator.pop(ctx);
-            showDownloadSheet(ctx, theme, prof);
-          },
-          icon: const Icon(Icons.download_rounded, size: 16),
-          label: const Text('Télécharger'),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: kNavy,
-            foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          ),
-        ),
-      ],
-    ),
-  );
-}
-
-void _showResumeDialog(
-  BuildContext context,
-  AppProvider provider,
-  Professor prof,
-  AudioTheme theme,
-  int trackIndex,
-  int positionMs,
-) {
-  final trackName = trackIndex < theme.tracks.length
-      ? formatAudioTitle(theme.tracks[trackIndex].filename)
-      : 'Piste ${trackIndex + 1}';
-  final pos = Duration(milliseconds: positionMs);
-  final posStr = '${pos.inMinutes.toString().padLeft(2, '0')}:${(pos.inSeconds % 60).toString().padLeft(2, '0')}';
-
-  showDialog(
-    context: context,
-    builder: (ctx) => AlertDialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      icon: Icon(Icons.play_circle_outline_rounded, color: kNavy, size: 40),
-      title: const Text(
-        'Continuer la lecture ?',
-        textAlign: TextAlign.center,
-        style: TextStyle(fontWeight: FontWeight.w700),
-      ),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            theme.name,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: kNavy,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            '« $trackName »',
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 12),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'à $posStr',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
-          ),
-        ],
-      ),
-      actionsAlignment: MainAxisAlignment.center,
-      actions: [
-        TextButton(
-          onPressed: () {
-            Navigator.pop(ctx);
-            provider.startFresh(prof, theme);
-          },
-          child: Text('Depuis le début',
-              style: TextStyle(color: Colors.grey.shade600)),
-        ),
-        ElevatedButton.icon(
-          onPressed: () {
-            Navigator.pop(ctx);
-            provider.confirmResume(prof, theme, trackIndex, positionMs);
-          },
-          icon: const Icon(Icons.play_arrow_rounded, size: 16),
-          label: const Text('Reprendre'),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: kNavy,
-            foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          ),
-        ),
-      ],
-    ),
-  );
 }
 
 class _ThemeActionButton extends StatelessWidget {
