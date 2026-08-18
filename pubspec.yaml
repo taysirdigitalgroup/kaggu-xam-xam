@@ -1,7 +1,7 @@
 name: kaggu_xam_xam
 description: Application d'enseignements islamiques - Kaggu Xam Xam
 publish_to: 'none'
-version: 1.1.1+3
+version: 1.2.0+4
 
 environment:
   sdk: '>=3.2.0 <4.0.0'

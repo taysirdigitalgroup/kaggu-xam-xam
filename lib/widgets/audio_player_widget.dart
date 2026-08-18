@@ -522,29 +522,37 @@ class _LoopButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<AppProvider>();
-    return GestureDetector(
-      onTap: provider.toggleLoop,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            provider.isLooping ? Icons.repeat_one : Icons.repeat,
-            size: 16,
-            color: provider.isLooping
-                ? kGoldLight
-                : Colors.white.withOpacity(0.45),
-          ),
-          const SizedBox(width: 3),
-          Text(
-            'Boucle',
-            style: TextStyle(
-              fontSize: 10,
-              color: provider.isLooping
-                  ? kGoldLight
-                  : Colors.white.withOpacity(0.45),
+    final mode = provider.loopMode;
+
+    // Cycle à 3 états, chacun visuellement distinct :
+    //   off → icône "repeat" classique, couleur inactive
+    //   one → icône "repeat_one" (1), couleur active (dorée)
+    //   all → icône "repeat" classique (comme off), mais couleur active
+    //         (dorée) — même icône que "désactivé", coloration de "actif"
+    final icon = mode == LoopMode.one ? Icons.repeat_one : Icons.repeat;
+    final active = mode != LoopMode.off;
+    final color = active ? kGoldLight : Colors.white.withOpacity(0.45);
+    final tooltip = switch (mode) {
+      LoopMode.one => 'Boucle : piste en cours',
+      LoopMode.all => 'Boucle : thème complet',
+      _            => 'Boucle désactivée',
+    };
+
+    return Tooltip(
+      message: tooltip,
+      child: GestureDetector(
+        onTap: provider.toggleLoop,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 16, color: color),
+            const SizedBox(width: 3),
+            Text(
+              'Boucle',
+              style: TextStyle(fontSize: 10, color: color),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

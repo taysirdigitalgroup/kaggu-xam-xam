@@ -90,8 +90,13 @@ class AppProvider extends ChangeNotifier {
   final Map<String, DownloadState> downloadStates = {};
 
   double playbackSpeed = 1.0;
-  bool   isLooping     = false;
   double volume        = 1.0;
+
+  /// État de la boucle du lecteur, cycle à 3 positions (voir [toggleLoop]) :
+  ///   off → une seule piste ne se répète pas, la lecture avance normalement
+  ///   one → la piste en cours se répète en boucle
+  ///   all → tout le thème (toutes ses pistes) se répète en boucle
+  LoopMode loopMode = LoopMode.off;
 
   // Compteur anti-bounce pour la save de position (toutes les ~5s)
   int _positionSaveTick = 0;
@@ -585,9 +590,16 @@ class AppProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Fait avancer la boucle d'un cran dans le cycle à 3 positions :
+  /// off → one (piste courante) → all (thème complet) → off → ...
   Future<void> toggleLoop() async {
-    isLooping = !isLooping;
-    await audioService.setLoopMode(isLooping ? LoopMode.one : LoopMode.off);
+    loopMode = switch (loopMode) {
+      LoopMode.off => LoopMode.one,
+      LoopMode.one => LoopMode.all,
+      LoopMode.all => LoopMode.off,
+      _            => LoopMode.off,
+    };
+    await audioService.setLoopMode(loopMode);
     notifyListeners();
   }
 
