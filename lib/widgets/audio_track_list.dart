@@ -8,6 +8,7 @@ import '../utils/app_theme.dart';
 import '../utils/string_utils.dart';
 import 'download_sheet.dart';
 import 'offline_dialog.dart';
+import 'restart_confirm_dialog.dart';
 
 class AudioTrackList extends StatelessWidget {
   final AudioTheme theme;
@@ -58,9 +59,19 @@ class AudioTrackList extends StatelessWidget {
               ),
 
               // Bouton "Recommencer" (remet piste 1 / position 0, sans lire)
+              // Demande confirmation avant d'agir, pour éviter de perdre la
+              // progression sur un appui accidentel.
               if (theme.tracks.isNotEmpty)
                 IconButton(
-                  onPressed: () => provider.restartTheme(),
+                  onPressed: () async {
+                    final confirmed = await showRestartConfirmDialog(
+                      context,
+                      themeName: theme.name,
+                    );
+                    if (confirmed) {
+                      await provider.restartTheme();
+                    }
+                  },
                   icon: Icon(Icons.replay_rounded, color: kNavy.withOpacity(0.55), size: 22),
                   tooltip: 'Recommencer depuis le début',
                 ),
